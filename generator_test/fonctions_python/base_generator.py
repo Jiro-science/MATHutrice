@@ -23,6 +23,10 @@ import json
 import logging
 from mistralai import Mistral
 
+# from generator_test.lacune_evaluation.LLM_as_Evaluator import competences_dict
+# from main import REFERENTIEL
+
+
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
@@ -33,7 +37,6 @@ MODEL = "mistral-small"
 MAX_RETRIES = 3
 
 client = Mistral(api_key=API_KEY)
-
 
 # ─── UTILITAIRES JSON ─────────────────────────────────────────────────────────
 
@@ -183,3 +186,254 @@ def print_question_header(index: int, total: int, extra: str = "") -> None:
     #     label += f"  [{extra}]"
     # print(label)
     # print(f"{'─' * 50}")
+
+
+import random
+
+
+# def choisir_competence(notion: dict, type_exercice: str, niveau_eleve: str):
+#     """
+#     Choisit une ou plusieurs compétences à travailler selon :
+#     - la notion étudiée
+#     - le type d'exercice : qcm, qro ou sbs
+#     - le niveau actuel de l'élève : basique, solide ou expert
+#     """
+
+#     # Ordre des niveaux pour savoir quel est le niveau supérieur
+#     ordre_niveaux = ["basique", "solide", "expert"]
+
+#     # Vérification du type d'exercice
+#     if type_exercice not in ["qcm", "qro", "sbs"]:
+#         raise ValueError("type_exercice doit être 'qcm', 'qro' ou 'sbs'.")
+
+#     # Vérification du niveau de l'élève
+#     if niveau_eleve not in ordre_niveaux:
+#         raise ValueError("niveau_eleve doit être 'basique', 'solide' ou 'expert'.")
+
+#     # Récupération de toutes les compétences de la notion
+#     competences = notion["competences"]
+
+#     # On garde seulement les compétences du niveau actuel de l'élève
+#     competences_niveau = [c for c in competences if c["niveau"] == niveau_eleve]
+#     print("les comp du niveau sont:", competences_niveau)
+
+#     # Si aucune compétence ne correspond au niveau demandé
+#     if not competences_niveau:
+#         return [] if type_exercice == "sbs" else None
+
+#     # Nombre de compétences du niveau actuel considérées comme maîtrisées
+#     # Une compétence est maîtrisée si son score est strictement supérieur à 0.8
+#     nb_acquises = sum(1 for c in competences_niveau if c["score"] > 0.8)
+
+#     # Proportion de compétences maîtrisées dans le niveau actuel
+#     proportion_acquises = nb_acquises / len(competences_niveau)
+
+#     # Position du niveau actuel dans la liste des niveaux
+#     niveau_index = ordre_niveaux.index(niveau_eleve)
+
+#     # Si plus de 70 % des compétences du niveau actuel sont maîtrisées,
+#     # on autorise aussi les compétences du niveau supérieur
+#     if proportion_acquises > 0.7:
+#         niveaux_autorises = [niveau_eleve]
+
+#         # Ajout du niveau supérieur s'il existe
+#         if niveau_index + 1 < len(ordre_niveaux):
+#             niveaux_autorises.append(ordre_niveaux[niveau_index + 1])
+
+#         # On sélectionne les compétences non maîtrisées
+#         # dans le niveau actuel + le niveau supérieur
+#         competences_candidates = [
+#             c
+#             for c in competences
+#             if c["niveau"] in niveaux_autorises and c["score"] < 1.0
+#         ]
+
+#     else:
+#         # Si l'élève ne maîtrise pas encore assez son niveau,
+#         # on reste vraiment uniquement sur les compétences de son niveau actuel
+#         competences_candidates = [
+#             c for c in competences if c["niveau"] == niveau_eleve and c["score"] < 1.0
+#         ]
+
+#     # Pour un QCM ou une QRO, on renvoie une seule compétence au hasard
+#     # if type_exercice in ["qcm", "qro"]:
+#     #     print("qcm","qro",competences_candidates)
+         
+#     #     return random.choice(competences_candidates) if competences_candidates else None
+#     if type_exercice in ["qcm", "qro"]:
+        
+#         if competences_candidates:
+#             competence_choisie = [random.choice(competences_candidates)]
+#             print("compétence choisie :", competence_choisie)
+#             return competence_choisie
+#         else:
+#             return []
+#     # Pour SBS, on renvoie toute la liste des compétences candidates
+#     if type_exercice == "sbs":
+#         print("sbs", competences_candidates)
+#         return competences_candidates
+
+import random
+
+def choisir_competence(notion: dict, type_exercice: str, niveau_eleve: str):
+    """
+    Choisit une ou plusieurs compétences à travailler selon :
+    - la notion étudiée
+    - le type d'exercice : qcm, qro ou sbs
+    - le niveau actuel de l'élève : basique, solide ou expert
+    """
+
+    ordre_niveaux = ["basique", "solide", "expert"]
+
+    if type_exercice not in ["qcm", "qro", "sbs"]:
+        raise ValueError("type_exercice doit être 'qcm', 'qro' ou 'sbs'.")
+
+    if niveau_eleve not in ordre_niveaux:
+        raise ValueError("niveau_eleve doit être 'basique', 'solide' ou 'expert'.")
+
+    competences = notion["competences"]
+
+    competences_niveau = [
+        c for c in competences
+        if c["niveau"] == niveau_eleve
+    ]
+
+    if not competences_niveau:
+        return [] if type_exercice == "sbs" else None
+
+    nb_acquises = sum(
+        1 for c in competences_niveau 
+        if c["score"] >= 0.8
+    )
+
+    proportion_acquises = nb_acquises / len(competences_niveau)
+
+    niveau_index = ordre_niveaux.index(niveau_eleve)
+
+    niveau_superieur = None
+    if niveau_index + 1 < len(ordre_niveaux):
+        niveau_superieur = ordre_niveaux[niveau_index + 1]
+
+    niveau_inferieur = None
+    if niveau_index - 1 >= 0:
+        niveau_inferieur = ordre_niveaux[niveau_index - 1]
+
+    niveaux_autorises = [niveau_eleve]
+
+    if proportion_acquises >= 0.7:
+        if niveau_superieur is not None:
+            niveaux_autorises.append(niveau_superieur)
+
+    else:
+        if type_exercice == "sbs" and niveau_inferieur is not None:
+            niveaux_autorises.append(niveau_inferieur)
+
+    competences_candidates = [
+        c for c in competences
+        if c["niveau"] in niveaux_autorises and c["score"] < 1.0
+    ]
+
+    if type_exercice in ["qcm", "qro"]:
+        return random.choice(competences_candidates) if competences_candidates else None
+
+    if type_exercice == "sbs":
+        return competences_candidates
+
+# DICTIONNAIRE FICTIF TEMPORAIRE avec compétences evaluées dans une questions donnée et lesquelles sont bonnes ou fausses
+
+question_format = {"type": "QCM", "niveau": "facile"}
+
+
+# FONCTION POUR METTRE A JOUR LE REFERENTIEL APRES UN TEST
+def update_scores(REFERENTIEL, question_format, competences_dict):
+    """
+    Met à jour les scores des compétences évaluées dans une question.
+
+    Paramètres :
+    - REFERENTIEL : dictionnaire contenant toutes les notions et compétences
+    - question_format : dictionnaire décrivant le format de la question
+        Exemple :
+        {
+            "type": "QCM",
+            "niveau": "facile"
+        }
+
+    - competences_dict : dictionnaire contenant les compétences évaluées
+      ainsi que le résultat de l'étudiant.
+
+      Exemple :
+      {
+          "ad01": True,
+          "ad03": False
+      }
+
+    Retour :
+    - REFERENTIEL mis à jour
+    """
+
+    # RÈGLES DE BONUS / MALUS (à valider en groupe)
+
+    scoring_rules = {
+        "QCM": {
+            "facile": (0.2, -0.4),
+            "intermediaire": (0.3, -0.3),
+            "difficile": (0.4, -0.2),
+        },
+        "QRO": {
+            "facile": (0.3, -0.4),
+            "intermediaire": (0.4, -0.3),
+            "difficile": (0.5, -0.2),
+        },
+        "SBS": {
+            "facile": (0.4, -0.4),
+            "intermediaire": (0.5, -0.3),
+            "difficile": (0.6, -0.2),
+        },
+    }
+
+    type_question = question_format["type"]
+    niveau_question = question_format["niveau"]
+    bonus, malus = scoring_rules[type_question][niveau_question]
+
+    anciens_scores = {}
+    for notion in REFERENTIEL.values():
+        for competence in notion["competences"]:
+            if competence["code"] in competences_dict:
+                anciens_scores[competence["code"]] = round(competence["score"], 3)
+
+    for notion in REFERENTIEL.values():
+        for competence in notion["competences"]:
+            code_competence = competence["code"]
+            if code_competence in competences_dict:
+                if competences_dict[code_competence] is True:
+                    competence["score"] += bonus
+                else:
+                    competence["score"] += malus
+
+    nouveaux_scores = {}
+    for notion in REFERENTIEL.values():
+        for competence in notion["competences"]:
+            if competence["code"] in competences_dict:
+                nouveaux_scores[competence["code"]] = round(competence["score"], 3)
+
+    return REFERENTIEL, anciens_scores, nouveaux_scores
+
+
+################# TEST de la fonction update_scores #################### Test OK
+if __name__ == "__main__":
+    print("\n===== AVANT =====")
+
+    for notion in REFERENTIEL.values():
+        for competence in notion["competences"]:
+            if competence["code"] in competences_dict:
+                print(competence["code"], "| score =", competence["score"])
+
+    # appel de la fonction
+    update_scores(REFERENTIEL, question_format, competences_dict)
+
+    print("\n===== APRES =====")
+
+    for notion in REFERENTIEL.values():
+        for competence in notion["competences"]:
+            if competence["code"] in competences_dict:
+                print(competence["code"], "| score =", competence["score"])

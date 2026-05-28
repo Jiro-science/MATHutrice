@@ -34,24 +34,25 @@ QRO_FORMAT = """
 }
 """
 
-
-def build_prompt(notion: str, niveau: str) -> str:
+def build_prompt(notion_nom: str, competence: dict) -> str:
     return f"""
 Tu es un tuteur de mathématiques pour des étudiants de première année d'université.
 Ta tâche est de générer UNE question à réponse ouverte (QRO) de mathématiques.
 
 Informations :
-- Notion : {notion}
-- Niveau : {niveau}
+- Notion : {notion_nom}
+- Code compétence : {competence["code"]}
+- Compétence ciblée : {competence["nom"]}
+- Niveau : {competence["niveau"]}
+- Score actuel : {competence["score"]}
 
 Contraintes pédagogiques :
-- La question doit appeler une réponse courte et précise (pas un développement long).
-- Exemples de bonnes questions QRO :
-    "Quelle est la dérivée de f(x) = 3x² ?"  → "6x"
-    "Donne la forme algébrique de z = 2(cos(π/3) + i·sin(π/3))"  → "1 + i√3"
-    "Simplifie la fraction 12/18"  → "2/3"
-- La correct_answer doit être concise : un résultat, une formule, une expression.
+- La question doit évaluer principalement la compétence ciblée.
+- La question doit être adaptée au niveau de la compétence.
+- La question doit appeler une réponse courte et précise.
+- La réponse attendue doit être concise : un résultat, une formule ou une expression.
 - Les calculs doivent être mathématiquement corrects.
+- Évite les questions trop générales ou qui nécessitent un long développement.
 
 Règles de sortie — TRÈS IMPORTANT :
 - Réponds UNIQUEMENT avec un JSON valide, rien d'autre.
@@ -185,22 +186,45 @@ def evaluate_answer(q: dict, user_answer: str) -> tuple[bool, str]:
 # GÉNÉRATION
 
 
-def generate_qro_question(notion: str, niveau: str) -> dict | None:
-    """Génère une question QRO validée. Retourne None si échec."""
-    prompt = build_prompt(notion, niveau)
-    return call_mistral(prompt, notion, parse_and_validate)
+# def generate_qro_question(notion: str, niveau: str) -> dict | None:
+#     """Génère une question QRO validée. Retourne None si échec."""
+#     prompt = build_prompt(notion, niveau)
+#     return call_mistral(prompt, notion, parse_and_validate)
 
 
-def generate_qro_test(notion: str, niveau: str, n: int) -> list[dict]:
-    """Génère un test de n questions QRO."""
-    return generate_test(notion, niveau, n, generate_qro_question)
+# def generate_qro_test(notion: str, niveau: str, n: int) -> list[dict]:
+#     """Génère un test de n questions QRO."""
+#     return generate_test(notion, niveau, n, generate_qro_question)
+
+def generate_qro_question(notion_nom: str, competence: dict) -> dict | None:
+    """Génère une question QRO validée à partir d'une compétence déjà choisie."""
+
+    prompt = build_prompt(
+        notion_nom=notion_nom,
+        competence=competence
+    )
+
+    return call_mistral(prompt, notion_nom, parse_and_validate)
 
 
+def generate_qro_test(notion_nom: str, competences: list[dict]) -> list[dict]:
+    """Génère un test QRO à partir d'une liste de compétences déjà choisies."""
+
+    questions = []
+
+    for competence in competences:
+        question = generate_qro_question(notion_nom, competence)
+
+        if question is not None:
+            question["competence_cible"] = competence
+            questions.append(question)
+
+    return questions
 # INTERFACE CONSOLE
 
 
-def ask_question(index: int, total: int, q: dict) -> bool:
-    """Pose une question QRO dans le terminal. Retourne True si bonne réponse."""
+def ask_question(index: int, total: int, q: dict) -> tuple[bool, str]:
+    """Pose une question QRO dans le terminal. Retourne (correct, reponse_etudiant)."""
     print_question_header(index, total)
     print(f"\n{q['question']}\n")
 
@@ -209,7 +233,7 @@ def ask_question(index: int, total: int, q: dict) -> bool:
     if not user_answer:
         print("  ⚠ Réponse vide. Question comptée comme incorrecte.")
         print(f"  La réponse attendue était : {q['correct_answer']}")
-        return False
+        return False, ""
 
     correct, feedback = evaluate_answer(q, user_answer)
 
@@ -221,7 +245,7 @@ def ask_question(index: int, total: int, q: dict) -> bool:
     if feedback:
         print(f"  💬 {feedback}")
 
-    return correct
+    return correct, user_answer
 
 
 # Faut faire un run test globale des 3 formats
@@ -237,7 +261,8 @@ def run_test(questions: list[dict]) -> None:
     # print_test_header(total, "QRO")
 
     for i, q in enumerate(questions, 1):
-        if ask_question(i, total, q):
+        correct, _ = ask_question(i, total, q)
+        if correct:
             score += 1
 
     display_score(score, total, "QRO")
