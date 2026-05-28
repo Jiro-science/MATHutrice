@@ -16,9 +16,21 @@ Usage :
 
 import argparse
 
-from type_questions.qcm_generator import generate_qcm_test, run_test as run_qcm, ask_question as ask_qcm_question
-from type_questions.qro_generator import generate_qro_test, run_test as run_qro, ask_question as ask_qro_question
-from type_questions.steps_generator import generate_steps_test, run_test as run_sbs, ask_exercice as ask_sbs_exercice
+from type_questions.qcm_generator import (
+    generate_qcm_test,
+    run_test as run_qcm,
+    ask_question as ask_qcm_question,
+)
+from type_questions.qro_generator import (
+    generate_qro_test,
+    run_test as run_qro,
+    ask_question as ask_qro_question,
+)
+from type_questions.steps_generator import (
+    generate_steps_test,
+    run_test as run_sbs,
+    ask_exercice as ask_sbs_exercice,
+)
 from base_generator import choisir_competence, update_scores
 
 # ─── NOTIONS DISPONIBLES ──────────────────────────────────────────────────────
@@ -871,6 +883,38 @@ def run(fmt: str, notion: str, niveau: str, n: int) -> None:
 #     return test
 
 
+def generate_exercise_randomly(
+    REFERENTIEL: dict, niveau: str, notion: str
+) -> list[dict]:
+    import random
+
+    fmt = random.choice(list(FORMATS.keys()))
+
+    notion_data = REFERENTIEL[notion]
+    notion_nom = notion_data["notion_nom"]
+
+    competence = choisir_competence(notion_data, type_exercice=fmt, niveau_eleve=niveau)
+
+    if not competence:
+        return []
+
+    if fmt == "qcm":
+        questions = generate_qcm_test(notion_nom, [competence])
+
+    elif fmt == "qro":
+        questions = generate_qro_test(notion_nom, [competence])
+
+    elif fmt == "sbs":
+        questions = generate_steps_test(notion_nom, [competence])
+
+    for q in questions:
+        q["type"] = fmt
+        q["notion_nom"] = notion_nom
+        q["niveau"] = niveau
+
+    return questions
+
+
 def generate_mixed_test(
     notion: str,
     niveau: str,
@@ -982,8 +1026,26 @@ def afficher_bilan(referentiel: dict, scores_initiaux: dict) -> None:
         delta = round(score_final - score_initial, 3)
         fleche = "↑" if delta > 0 else ("↓" if delta < 0 else "=")
         nom = comp_noms.get(code, code)
-        print(f"  [{code}] {nom[:42]:<42} : {score_initial:.2f} → {score_final:.2f}  {fleche}")
+        print(
+            f"  [{code}] {nom[:42]:<42} : {score_initial:.2f} → {score_final:.2f}  {fleche}"
+        )
     print(SEP)
+
+
+def run_training(REFERENTIEL: dict, niveau: str, notion: str) -> None:
+    import time
+
+    print(
+        f"\nLancement de la session de formation pour la notion '{notion}' au niveau '{niveau}'..."
+    )
+
+    while True:
+        questions = generate_exercise_randomly(REFERENTIEL, niveau, notion)
+
+        if questions:
+            run_test(questions)
+
+        time.sleep(1)
 
 
 def run_test(questions: list[dict]) -> None:
@@ -992,7 +1054,9 @@ def run_test(questions: list[dict]) -> None:
 
     NIVEAU_MAP = {"basique": "facile", "solide": "intermediaire", "expert": "difficile"}
 
-    _eval_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lacune_evaluation")
+    _eval_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "lacune_evaluation"
+    )
     if _eval_path not in sys.path:
         sys.path.insert(0, _eval_path)
 
@@ -1015,7 +1079,10 @@ def run_test(questions: list[dict]) -> None:
         if q_type == "qcm":
             correct, chosen = ask_qcm_question(i, total, question)
             comp = question.get("competence_cible")
-            q_format = {"type": "QCM", "niveau": NIVEAU_MAP.get(question.get("niveau", "basique"), "facile")}
+            q_format = {
+                "type": "QCM",
+                "niveau": NIVEAU_MAP.get(question.get("niveau", "basique"), "facile"),
+            }
             if comp:
                 if correct:
                     competences_dict = {comp["code"]: True}
@@ -1040,7 +1107,10 @@ def run_test(questions: list[dict]) -> None:
         elif q_type == "qro":
             correct, user_answer = ask_qro_question(i, total, question)
             comp = question.get("competence_cible")
-            q_format = {"type": "QRO", "niveau": NIVEAU_MAP.get(question.get("niveau", "basique"), "facile")}
+            q_format = {
+                "type": "QRO",
+                "niveau": NIVEAU_MAP.get(question.get("niveau", "basique"), "facile"),
+            }
             if comp:
                 if correct:
                     competences_dict = {comp["code"]: True}
@@ -1065,14 +1135,22 @@ def run_test(questions: list[dict]) -> None:
         elif q_type == "sbs":
             score_ex, total_ex, student_answers = ask_sbs_exercice(i, total, question)
             comps = question.get("competences_cibles", [])
-            q_format = {"type": "SBS", "niveau": NIVEAU_MAP.get(question.get("niveau", "basique"), "facile")}
+            q_format = {
+                "type": "SBS",
+                "niveau": NIVEAU_MAP.get(question.get("niveau", "basique"), "facile"),
+            }
             if score_ex == total_ex:
                 competences_dict = {c["code"]: True for c in comps}
                 afficher_competences_dict(competences_dict)
                 _update(q_format, competences_dict)
             elif student_answers and comps:
-                reponse_correcte = "\n".join(f"Étape {j}: {a}" for j, a in enumerate(question["correct_answers"], 1))
-                reponse_etudiant = "\n".join(f"Étape {j}: {a}" for j, a in enumerate(student_answers, 1))
+                reponse_correcte = "\n".join(
+                    f"Étape {j}: {a}"
+                    for j, a in enumerate(question["correct_answers"], 1)
+                )
+                reponse_etudiant = "\n".join(
+                    f"Étape {j}: {a}" for j, a in enumerate(student_answers, 1)
+                )
                 competences_dict = {}
                 try:
                     for comp in comps:
@@ -1139,12 +1217,14 @@ def main():
     if all([args.notion, args.niveau, args.n]):
         test = generate_mixed_test(args.notion, args.niveau, args.n, args.n, args.n)
         run_test(test)
+        run_training(REFERENTIEL, args.niveau, args.notion)
 
     # Sinon → menu interactif
     else:
         notion, niveau, n = interactive_menu()
         test = generate_mixed_test(notion, niveau, n, n, n)
         run_test(test)
+        run_training(REFERENTIEL, niveau, notion)
 
 
 if __name__ == "__main__":
