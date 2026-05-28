@@ -258,10 +258,10 @@ import random
 #     # Pour un QCM ou une QRO, on renvoie une seule compétence au hasard
 #     # if type_exercice in ["qcm", "qro"]:
 #     #     print("qcm","qro",competences_candidates)
-         
+
 #     #     return random.choice(competences_candidates) if competences_candidates else None
 #     if type_exercice in ["qcm", "qro"]:
-        
+
 #         if competences_candidates:
 #             competence_choisie = [random.choice(competences_candidates)]
 #             print("compétence choisie :", competence_choisie)
@@ -274,6 +274,7 @@ import random
 #         return competences_candidates
 
 import random
+
 
 def choisir_competence(notion: dict, type_exercice: str, niveau_eleve: str):
     """
@@ -293,18 +294,12 @@ def choisir_competence(notion: dict, type_exercice: str, niveau_eleve: str):
 
     competences = notion["competences"]
 
-    competences_niveau = [
-        c for c in competences
-        if c["niveau"] == niveau_eleve
-    ]
+    competences_niveau = [c for c in competences if c["niveau"] == niveau_eleve]
 
     if not competences_niveau:
         return [] if type_exercice == "sbs" else None
 
-    nb_acquises = sum(
-        1 for c in competences_niveau 
-        if c["score"] >= 0.8
-    )
+    nb_acquises = sum(1 for c in competences_niveau if c["score"] >= 0.8)
 
     proportion_acquises = nb_acquises / len(competences_niveau)
 
@@ -329,8 +324,7 @@ def choisir_competence(notion: dict, type_exercice: str, niveau_eleve: str):
             niveaux_autorises.append(niveau_inferieur)
 
     competences_candidates = [
-        c for c in competences
-        if c["niveau"] in niveaux_autorises and c["score"] < 1.0
+        c for c in competences if c["niveau"] in niveaux_autorises and c["score"] < 1.0
     ]
 
     if type_exercice in ["qcm", "qro"]:
@@ -338,6 +332,7 @@ def choisir_competence(notion: dict, type_exercice: str, niveau_eleve: str):
 
     if type_exercice == "sbs":
         return competences_candidates
+
 
 # DICTIONNAIRE FICTIF TEMPORAIRE avec compétences evaluées dans une questions donnée et lesquelles sont bonnes ou fausses
 
@@ -419,21 +414,21 @@ def update_scores(REFERENTIEL, question_format, competences_dict):
     return REFERENTIEL, anciens_scores, nouveaux_scores
 
 
-################# TEST de la fonction update_scores #################### Test OK
-if __name__ == "__main__":
-    print("\n===== AVANT =====")
+# ################# TEST de la fonction update_scores #################### Test OK
+# if __name__ == "__main__":
+#     print("\n===== AVANT =====")
 
-    for notion in REFERENTIEL.values():
-        for competence in notion["competences"]:
-            if competence["code"] in competences_dict:
-                print(competence["code"], "| score =", competence["score"])
+#     for notion in REFERENTIEL.values():
+#         for competence in notion["competences"]:
+#             if competence["code"] in competences_dict:
+#                 print(competence["code"], "| score =", competence["score"])
 
-    # appel de la fonction
-    update_scores(REFERENTIEL, question_format, competences_dict)
+#     # appel de la fonction
+#     update_scores(REFERENTIEL, question_format, competences_dict)
 
-    print("\n===== APRES =====")
+#     print("\n===== APRES =====")
 
-    for notion in REFERENTIEL.values():
-        for competence in notion["competences"]:
-            if competence["code"] in competences_dict:
-                print(competence["code"], "| score =", competence["score"])
+#     for notion in REFERENTIEL.values():
+#         for competence in notion["competences"]:
+#             if competence["code"] in competences_dict:
+#                 print(competence["code"], "| score =", competence["score"])
