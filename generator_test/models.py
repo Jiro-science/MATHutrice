@@ -4,9 +4,6 @@ from datetime import datetime
 from decimal import Decimal
 
 
-
-
-
 # =========================================================
 # 🔗 TABLE DE LIAISON — GENERER (many-to-many)
 # Un exercice peut couvrir plusieurs compétences
@@ -37,19 +34,18 @@ class Generer(SQLModel, table=True):
 class User(SQLModel, table=True):
     """
     Compte utilisateur créé automatiquement à la première connexion SSO.
-    role = "etudiant" par défaut, "admin" attribué manuellement ou via interface admin.
+    role = "Student" par défaut, "Teacher" ou "Admin" attribué manuellement.
     last_active = nullable car un compte tout juste créé n'a pas encore de dernière activité.
     """
 
     __tablename__ = "user_"
 
     sso_id: str = Field(primary_key=True, max_length=36)
-    firstname: str = Field(max_length=50)
-    lastname: str = Field(max_length=50)
     created_at: datetime
-    last_active: Optional[datetime] = None  # nullable — pas encore connecté
-    role: str = Field(max_length=50)  # "etudiant" | "admin"
+    last_active: Optional[datetime] = None
+    role: str = Field(max_length=50)  # "Student" | "Teacher" | "Admin"
     email: str = Field(unique=True, max_length=50)
+    name: str = Field(max_length=100)
 
     # Relations
     conversations: List["Conversation"] = Relationship(back_populates="user")
