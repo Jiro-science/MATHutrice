@@ -209,3 +209,5 @@ __marimo__/
 #MCD/MLD
 *.loo
 *.lo1
+
+*.pdf
