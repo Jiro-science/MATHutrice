@@ -25,7 +25,7 @@ from fonctions_python.chatbot import (
     chat_stream_with_history,
     reset_conversation,
 )
-from test_format_generator.QCM import generate_qcm_statement
+# from test_format_generator.QCM import generate_qcm_statement
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import models
