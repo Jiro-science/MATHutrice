@@ -87,6 +87,8 @@ async def callback(request: Request, code: str = None, error: str = None):
 
     email = claims.get("preferred_username")
 
+    name = claims.get("name", "")
+
     # email = claims.get("email") or claims.get("preferred_username")
 
     if not email or not email.endswith("@epfedu.fr"):
@@ -104,7 +106,7 @@ async def callback(request: Request, code: str = None, error: str = None):
     # 💾 session normale
     request.session["user"] = {
         "email": email,
-        "name": claims.get("name"),
+        "name": name,
         "impersonate": False
     }
 
@@ -114,8 +116,10 @@ async def callback(request: Request, code: str = None, error: str = None):
 
         <h3>👤 Utilisateur</h3>
         <pre>
-Nom   : {claims.get("name", "non fourni")}
+Nom   : {name}
 Email : {email}
+firstname : {firstname}
+lastname : {lastname}
         </pre>
 
         <h3>🔐 Rôles</h3>
