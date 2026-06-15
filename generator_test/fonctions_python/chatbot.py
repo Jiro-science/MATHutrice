@@ -18,9 +18,10 @@ REGLES DE FORMATAGE OBLIGATOIRES:
 3. FORMULES MATHEMATIQUES - TRES IMPORTANT:
    - Inline: $x^2$ (avec un seul $)
    - Display: $$\\frac{a}{b}$$ (avec deux $$)
-   - NE JAMAIS utiliser ( ) pour les maths, TOUJOURS $ ou $$
+   - NE JAMAIS utiliser ( ) pour les maths, TOUJOURS $ ou $$   
 4. Utilise **gras** pour les termes importants
-5. Utilise ## pour les titres de sections"""
+5. Utilise ## pour les titres de sections
+6. Evite absolument les schémas """
 
 
 MAX_HISTORY = 10
