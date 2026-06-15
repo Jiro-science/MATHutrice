@@ -491,7 +491,7 @@ async function startSession() {
 
   // Lien retour vers le module
   document.getElementById("back-btn").href =
-    `/module.html?module=${encodeURIComponent(urlParams.notion)}&niveau=${encodeURIComponent(urlParams.niveau)}`;
+    `/module?module=${encodeURIComponent(urlParams.notion)}&niveau=${encodeURIComponent(urlParams.niveau)}`;
 
   updateProgress(0);
 
