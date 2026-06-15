@@ -12,7 +12,7 @@ Particularité : vérification mathématique via SymPy (verifier.py)
 Les réponses fausses de Mistral sont corrigées automatiquement.
 """
 
-from base_generator import (
+from fonctions_python.base_generator import (
     call_mistral,
     generate_test,
     display_score,
@@ -20,7 +20,7 @@ from base_generator import (
     parse_json,
     logger,
 )
-from verifier import apply_verification
+from fonctions_python.verifier import apply_verification
 
 
 # ─── PROMPT ───────────────────────────────────────────────────────────────────
@@ -123,13 +123,11 @@ def post_process(question: dict) -> dict:
 #     """Génère un test de n questions QCM."""
 #     return generate_test(notion, niveau, n, generate_qcm_question)
 
+
 def generate_qcm_question(notion_nom: str, competence: dict) -> dict | None:
     """Génère une question QCM validée à partir d'une compétence déjà choisie."""
 
-    prompt = build_prompt(
-        notion_nom=notion_nom,
-        competence=competence
-    )
+    prompt = build_prompt(notion_nom=notion_nom, competence=competence)
 
     return call_mistral(prompt, notion_nom, parse_and_validate, post_process)
 
@@ -147,6 +145,8 @@ def generate_qcm_test(notion_nom: str, competences: list[dict]) -> list[dict]:
             questions.append(question)
 
     return questions
+
+
 # ─── INTERFACE CONSOLE ────────────────────────────────────────────────────────
 
 

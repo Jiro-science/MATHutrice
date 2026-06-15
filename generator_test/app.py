@@ -25,7 +25,8 @@ from fonctions_python.chatbot import (
     chat_stream_with_history,
     reset_conversation,
 )
-from test_format_generator.QCM import generate_qcm_statement
+
+# from test_format_generator.QCM import generate_qcm_statement
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import models
@@ -69,9 +70,7 @@ def cleanup_old_conversations():
 
         for conv_id in old_conv_ids:
             session.exec(
-                delete(models.Message).where(
-                    models.Message.conversation_id == conv_id
-                )
+                delete(models.Message).where(models.Message.conversation_id == conv_id)
             )
             session.exec(
                 delete(models.Conversation).where(
@@ -131,9 +130,7 @@ app.mount(
     name="static",
 )
 
-templates = Jinja2Templates(
-    directory=os.path.join(BASE_DIR, "templates")
-)
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 UPLOAD_DIR = os.path.join(BASE_DIR, "rag_documents")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -292,7 +289,6 @@ async def auth_callback(
 
     # Existing user
     if existing_user:
-
         existing_user.last_active = now
 
         session.add(existing_user)
@@ -302,7 +298,6 @@ async def auth_callback(
 
     # First login → create default student
     else:
-
         new_user = models.User(
             sso_id=str(uuid.uuid4()),
             name=name,
@@ -407,9 +402,7 @@ async def impersonate(
 
     email = unquote(email)
 
-    target = session.exec(
-        select(models.User).where(models.User.email == email)
-    ).first()
+    target = session.exec(select(models.User).where(models.User.email == email)).first()
 
     # Default role if user does not exist
     target_role = target.role if target else "Student"
@@ -482,7 +475,6 @@ async def upload_pdf(
     saved = []
 
     for file in files:
-
         if file.content_type != "application/pdf":
             continue
 
@@ -531,15 +523,11 @@ async def list_pdfs(request: Request):
     files = []
 
     for filename in os.listdir(UPLOAD_DIR):
-
         if not filename.endswith(".pdf"):
             continue
 
         # Teachers only see their own files
-        if (
-            user.get("role") == "Teacher"
-            and not filename.startswith(email_prefix)
-        ):
+        if user.get("role") == "Teacher" and not filename.startswith(email_prefix):
             continue
 
         path = os.path.join(UPLOAD_DIR, filename)
@@ -548,24 +536,20 @@ async def list_pdfs(request: Request):
 
         parts = filename.split("__", 1)
 
-        display_name = (
-            parts[1] if len(parts) == 2 else filename
-        )
+        display_name = parts[1] if len(parts) == 2 else filename
 
-        uploader = (
-            parts[0].replace("_at_", "@")
-            if len(parts) == 2
-            else "unknown"
-        )
+        uploader = parts[0].replace("_at_", "@") if len(parts) == 2 else "unknown"
 
-        files.append({
-            "name": display_name,
-            "uploader": uploader,
-            "size": f"{stat.st_size / (1024 * 1024):.1f} MB",
-            "date": datetime.fromtimestamp(
-                stat.st_mtime
-            ).strftime("%d/%m/%Y %H:%M"),
-        })
+        files.append(
+            {
+                "name": display_name,
+                "uploader": uploader,
+                "size": f"{stat.st_size / (1024 * 1024):.1f} MB",
+                "date": datetime.fromtimestamp(stat.st_mtime).strftime(
+                    "%d/%m/%Y %H:%M"
+                ),
+            }
+        )
 
     files.sort(
         key=lambda x: x["date"],
@@ -599,9 +583,7 @@ async def home_page(
     if user.get("role") == "Teacher":
         return RedirectResponse("/teacher")
 
-    notions = session.exec(
-        select(models.Notion.notion_id, models.Notion.title)
-    ).all()
+    notions = session.exec(select(models.Notion.notion_id, models.Notion.title)).all()
 
     return templates.TemplateResponse(
         "home.html",
@@ -636,6 +618,7 @@ async def module_page(
 
     notion = session.exec(
         select(
+            models.Notion.notion_id,  # <-- Add this line
             models.Notion.title,
             models.Notion.description,
         ).where(models.Notion.notion_id == id)
@@ -670,9 +653,7 @@ async def chat_page(
     if user.get("role") == "Teacher":
         return RedirectResponse("/teacher")
 
-    notions = session.exec(
-        select(models.Notion.notion_id, models.Notion.title)
-    ).all()
+    notions = session.exec(select(models.Notion.notion_id, models.Notion.title)).all()
 
     return templates.TemplateResponse(
         "chat.html",
@@ -742,7 +723,9 @@ async def list_conversations(
     ).first()
 
     if not sso_id:
-        return JSONResponse(status_code=404, content={"detail": "Utilisateur introuvable"})
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
 
     conversations = session.exec(
         select(models.Conversation)
@@ -787,7 +770,9 @@ async def get_conversation(
     ).first()
 
     if not conv:
-        return JSONResponse(status_code=404, content={"detail": "Conversation introuvable"})
+        return JSONResponse(
+            status_code=404, content={"detail": "Conversation introuvable"}
+        )
 
     messages = session.exec(
         select(models.Message)
@@ -801,10 +786,7 @@ async def get_conversation(
             "id": conv.conversation_id,
             "title": conv.title,
         },
-        "messages": [
-            {"role": m.role, "content": m.content}
-            for m in messages
-        ],
+        "messages": [{"role": m.role, "content": m.content} for m in messages],
     }
 
 
@@ -866,10 +848,7 @@ async def chat_stream_endpoint(
         .order_by(models.Message.sent_at.asc())
     ).all()
 
-    history = [
-        {"role": m.role, "content": m.content}
-        for m in all_messages[-10:]
-    ]
+    history = [{"role": m.role, "content": m.content} for m in all_messages[-10:]]
 
     full_response = []
 
@@ -940,7 +919,6 @@ async def chat_reset_endpoint():
 async def chat_complete_endpoint(data: ChatRequest):
 
     try:
-
         response = chat(data.message)
 
         return {
@@ -949,7 +927,6 @@ async def chat_complete_endpoint(data: ChatRequest):
         }
 
     except Exception as e:
-
         return JSONResponse(
             status_code=500,
             content={
@@ -964,48 +941,534 @@ async def chat_complete_endpoint(data: ChatRequest):
 # ------------------------------------------------------------------
 
 
-@app.post("/generate_qcm")
-async def generate_qcm_endpoint(data: QCMRequest):
+# @app.post("/generate_qcm")
+# async def generate_qcm_endpoint(data: QCMRequest):
 
-    questions = []
-    errors = []
+#     questions = []
+#     errors = []
 
-    for i in range(data.n):
+#     for i in range(data.n):
+#         try:
+#             qcm = generate_qcm_statement(
+#                 notion=data.notion,
+#                 niveau=data.niveau,
+#             )
 
-        try:
+#             questions.append(qcm)
 
-            qcm = generate_qcm_statement(
-                notion=data.notion,
-                niveau=data.niveau,
-            )
+#         except Exception as e:
+#             errors.append(
+#                 {
+#                     "index": i,
+#                     "error": str(e),
+#                 }
+#             )
 
-            questions.append(qcm)
+#     if not questions:
+#         return JSONResponse(
+#             status_code=500,
+#             content={
+#                 "ok": False,
+#                 "error": "Aucune question générée",
+#                 "details": errors,
+#             },
+#         )
 
-        except Exception as e:
+#     return {
+#         "ok": True,
+#         "notion": data.notion,
+#         "niveau": data.niveau,
+#         "questions": questions,
+#         "errors": errors,
+#     }
 
-            errors.append({
-                "index": i,
-                "error": str(e),
-            })
 
-    if not questions:
+# ------------------------------------------------------------------
+# SESSION — reset scores d'une notion pour un élève
+# Remet tous les attempts_count à 0 et scores à 0.5
+# pour déclencher un nouveau positionnement
+# ------------------------------------------------------------------
 
+
+class ResetRequest(BaseModel):
+    notion_key: str
+
+
+@app.post("/session/reset")
+async def reset_session_endpoint(
+    request: Request,
+    data: ResetRequest,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+
+    if not sso_id:
         return JSONResponse(
-            status_code=500,
-            content={
-                "ok": False,
-                "error": "Aucune question générée",
-                "details": errors,
-            },
+            status_code=404, content={"detail": "Utilisateur introuvable"}
         )
 
-    return {
-        "ok": True,
-        "notion": data.notion,
-        "niveau": data.niveau,
-        "questions": questions,
-        "errors": errors,
+    try:
+        from fonctions_python.main import REFERENTIEL
+        from decimal import Decimal
+
+        if data.notion_key not in REFERENTIEL:
+            return JSONResponse(
+                status_code=400, content={"ok": False, "error": "Notion inconnue"}
+            )
+
+        codes = [c["code"] for c in REFERENTIEL[data.notion_key]["competences"]]
+        now = datetime.utcnow()
+
+        rows = session.exec(
+            select(models.Progression).where(
+                models.Progression.sso_id == sso_id,
+                models.Progression.competence_id.in_(codes),
+            )
+        ).all()
+
+        for prog in rows:
+            prog.score = Decimal("0.50")
+            prog.level = "moyen"
+            prog.attempts_count = 0
+            prog.updated_at = now
+            session.add(prog)
+
+        session.commit()
+        return {"ok": True}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+        # ------------------------------------------------------------------
+
+
+# Pydantic models — Session
+# ------------------------------------------------------------------
+
+
+class SessionRequest(BaseModel):
+    notion_key: str
+
+
+class SubmitAnswerRequest(BaseModel):
+    notion_key: str
+    competences_dict: dict  # { "tr01": True, "tr04": False }
+    question_type: str  # "QCM" | "QRO" | "SBS"
+    question_niveau: str  # "basique" | "solide" | "expert"
+
+
+class EvaluateQRORequest(BaseModel):
+    question: str
+    correct_answer: str
+    user_answer: str
+
+
+# ------------------------------------------------------------------
+# SESSION PAGE
+# ------------------------------------------------------------------
+
+
+@app.get("/session", response_class=HTMLResponse)
+async def session_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/test_login")
+    if user.get("role") == "Teacher":
+        return RedirectResponse("/teacher")
+    return templates.TemplateResponse("session.html", {"request": request})
+
+
+# ------------------------------------------------------------------
+# CHECK PREMIÈRE SESSION
+# Retourne si c'est la première fois sur cette notion
+# ------------------------------------------------------------------
+
+
+@app.get("/session/check")
+async def check_session(
+    request: Request,
+    notion_key: str,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+
+    if not sso_id:
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
+
+    from fonctions_python.session_generator import is_first_session
+
+    first = is_first_session(notion_key, sso_id, session)
+
+    return {"ok": True, "first_session": first}
+
+
+# ------------------------------------------------------------------
+# GÉNÉRATION POSITIONNEMENT
+# Première session : 5 QCM + 3 QRO + 2 SBS
+# ------------------------------------------------------------------
+
+
+@app.post("/session/positioning")
+async def positioning_endpoint(
+    request: Request,
+    data: SessionRequest,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+
+    if not sso_id:
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
+
+    try:
+        from fonctions_python.session_generator import generate_positioning_session
+
+        result = generate_positioning_session(data.notion_key, sso_id, session)
+        return {"ok": True, **result}
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+# ------------------------------------------------------------------
+# GÉNÉRATION QUESTION ENTRAÎNEMENT
+# Une question à la fois, niveau déduit des scores DB
+# ------------------------------------------------------------------
+
+
+@app.post("/session/next")
+async def next_question_endpoint(
+    request: Request,
+    data: SessionRequest,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+
+    if not sso_id:
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
+
+    try:
+        from fonctions_python.session_generator import generate_next_question
+
+        result = generate_next_question(data.notion_key, sso_id, session)
+        return {"ok": True, **result}
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"ok": False, "error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+# ------------------------------------------------------------------
+# SOUMETTRE UNE RÉPONSE — met à jour la progression en DB
+# ------------------------------------------------------------------
+
+
+@app.post("/session/submit")
+async def submit_answer_endpoint(
+    request: Request,
+    data: SubmitAnswerRequest,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+
+    if not sso_id:
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
+
+    try:
+        from fonctions_python.session_generator import persist_score_update
+
+        persist_score_update(
+            sso_id=sso_id,
+            competences_dict=data.competences_dict,
+            question_type=data.question_type,
+            question_niveau=data.question_niveau,
+            db=session,
+        )
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+# ------------------------------------------------------------------
+# ÉVALUATION QRO — LLM-as-judge via qro_generator
+# ------------------------------------------------------------------
+
+
+@app.post("/session/evaluate_qro")
+async def evaluate_qro_endpoint(
+    request: Request,
+    data: EvaluateQRORequest,
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    try:
+        from fonctions_python.type_questions.qro_generator import evaluate_answer
+
+        q = {"question": data.question, "correct_answer": data.correct_answer}
+        correct, feedback = evaluate_answer(q, data.user_answer)
+        return {"ok": True, "correct": correct, "feedback": feedback}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+        # ------------------------------------------------------------------
+
+
+# SESSION — question ciblée sur une compétence spécifique
+# ------------------------------------------------------------------
+
+
+class TargetedRequest(BaseModel):
+    notion_key: str
+    competence_code: str
+
+
+@app.post("/session/next_targeted")
+async def next_targeted_endpoint(
+    request: Request,
+    data: TargetedRequest,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+
+    if not sso_id:
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
+
+    try:
+        from fonctions_python.session_generator import build_notion_data_with_scores
+        from fonctions_python.main import REFERENTIEL
+        from fonctions_python.type_questions.qcm_generator import generate_qcm_question
+        from fonctions_python.type_questions.qro_generator import generate_qro_question
+        import random
+        import copy
+
+        if data.notion_key not in REFERENTIEL:
+            return JSONResponse(
+                status_code=400, content={"ok": False, "error": "Notion inconnue"}
+            )
+
+        # Trouver la compétence ciblée
+        notion_data = build_notion_data_with_scores(data.notion_key, sso_id, session)
+        competence = next(
+            (
+                c
+                for c in notion_data["competences"]
+                if c["code"] == data.competence_code
+            ),
+            None,
+        )
+
+        if not competence:
+            return JSONResponse(
+                status_code=404,
+                content={"ok": False, "error": "Compétence introuvable"},
+            )
+
+        notion_nom = notion_data["notion_nom"]
+
+        # Choisir aléatoirement QCM ou QRO (50/50)
+        q_type = random.choice(["qcm", "qro"])
+
+        if q_type == "qcm":
+            question = generate_qcm_question(notion_nom, competence)
+            if question:
+                question["type"] = "qcm"
+                question["notion_nom"] = notion_nom
+                question["competence_cible"] = competence
+        else:
+            question = generate_qro_question(notion_nom, competence)
+            if question:
+                question["type"] = "qro"
+                question["notion_nom"] = notion_nom
+                question["competence_cible"] = competence
+
+        if not question:
+            return JSONResponse(
+                status_code=500, content={"ok": False, "error": "Génération échouée"}
+            )
+
+        return {
+            "ok": True,
+            "notion_nom": notion_nom,
+            "notion_key": data.notion_key,
+            "niveau_eleve": competence.get("niveau", "basique"),
+            "questions": [question],
+            "session_type": "entrainement_cible",
+        }
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+# ------------------------------------------------------------------
+# SESSION — feedback progressif via LLM_as_Evaluator
+# ------------------------------------------------------------------
+
+
+class FeedbackRequest(BaseModel):
+    question: str
+    correct_answer: str
+    user_answer: str
+    attempt: int  # 1, 2 ou 3
+    competence: dict  # { code, nom, niveau }
+    notion_nom: str
+    question_type: str  # qcm | qro | sbs
+
+
+@app.post("/session/feedback")
+async def get_feedback(data: dict):
+    # On récupère le nombre d'essais et la question
+    tentative = data.get("tentative", 1)
+    question = data.get("question")
+    reponse_eleve = data.get("reponse")
+
+    # Définition des instructions selon la tentative
+    instructions = {
+        1: "Donne un indice court, subtil et encourageant pour aider l'élève à démarrer sans donner la solution.",
+        2: "Explique la méthode ou le point théorique bloquant sans donner la réponse finale.",
+        3: "Donne une explication complète, la méthode pas à pas et la solution détaillée pour apprendre de l'erreur.",
     }
+
+    instruction = instructions.get(min(tentative, 3), instructions[3])
+
+    # Appel à ton moteur de chat (en supposant que 'chat' est ta fonction LLM)
+    from fonctions_python.chatbot import chat
+
+    prompt = f"""
+    Tu es un tuteur pédagogue en mathématiques.
+    Question : {question.get("enonce")}
+    Réponse donnée par l'élève : {reponse_eleve}
+    
+    {instruction}
+    """
+
+    feedback = chat(prompt)  # Appelle Mistral via ta fonction existante
+
+    return {"feedback": feedback}
+
+
+# ------------------------------------------------------------------
+# SESSION — question ciblée sur une compétence spécifique
+# ------------------------------------------------------------------
+
+
+class NextTargetedRequest(BaseModel):
+    notion_key: str
+    competence_code: str
+
+
+@app.post("/session/next_targeted")
+async def next_targeted_endpoint(
+    request: Request,
+    data: NextTargetedRequest,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+    if not sso_id:
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
+
+    try:
+        from fonctions_python.session_generator import build_notion_data_with_scores
+        from fonctions_python.main import REFERENTIEL
+        import random
+
+        if data.notion_key not in REFERENTIEL:
+            return JSONResponse(
+                status_code=400, content={"ok": False, "error": "Notion inconnue"}
+            )
+
+        notion_data = build_notion_data_with_scores(data.notion_key, sso_id, session)
+        notion_nom = notion_data["notion_nom"]
+
+        # Trouver la compétence ciblée
+        comp = next(
+            (
+                c
+                for c in notion_data["competences"]
+                if c["code"] == data.competence_code
+            ),
+            None,
+        )
+        if not comp:
+            return JSONResponse(
+                status_code=400, content={"ok": False, "error": "Compétence inconnue"}
+            )
+
+        # Générer QCM ou QRO aléatoirement
+        qtype = random.choice(["qcm", "qro"])
+
+        if qtype == "qcm":
+            from fonctions_python.type_questions.qcm_generator import generate_qcm
+
+            question = generate_qcm(notion_data, comp)
+            question["type"] = "qcm"
+        else:
+            from fonctions_python.type_questions.qro_generator import generate_qro
+
+            question = generate_qro(notion_data, comp)
+            question["type"] = "qro"
+
+        question["notion_nom"] = notion_nom
+
+        return {"ok": True, "questions": [question], "notion_nom": notion_nom}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
 # ------------------------------------------------------------------
@@ -1014,7 +1477,6 @@ async def generate_qcm_endpoint(data: QCMRequest):
 
 
 if __name__ == "__main__":
-
     uvicorn.run(
         app,
         host="0.0.0.0",

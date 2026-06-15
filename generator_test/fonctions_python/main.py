@@ -16,22 +16,22 @@ Usage :
 
 import argparse
 
-from type_questions.qcm_generator import (
+from fonctions_python.type_questions.qcm_generator import (
     generate_qcm_test,
     run_test as run_qcm,
     ask_question as ask_qcm_question,
 )
-from type_questions.qro_generator import (
+from fonctions_python.type_questions.qro_generator import (
     generate_qro_test,
     run_test as run_qro,
     ask_question as ask_qro_question,
 )
-from type_questions.steps_generator import (
+from fonctions_python.type_questions.steps_generator import (
     generate_steps_test,
     run_test as run_sbs,
     ask_exercice as ask_sbs_exercice,
 )
-from base_generator import choisir_competence, update_scores
+from fonctions_python.base_generator import choisir_competence, update_scores
 
 # ─── NOTIONS DISPONIBLES ──────────────────────────────────────────────────────
 
@@ -921,12 +921,12 @@ def generate_mixed_test(
     n_qcm: int = 0,
     n_qro: int = 0,
     n_steps: int = 0,
+    notion_data_override: dict = None,  # ← ajouter
 ) -> list[dict]:
 
-    test = []
-
-    notion_data = REFERENTIEL[notion]
+    notion_data = notion_data_override or REFERENTIEL[notion]
     notion_nom = notion_data["notion_nom"]
+    test = []
 
     if n_qcm > 0:
         competences_qcm = [

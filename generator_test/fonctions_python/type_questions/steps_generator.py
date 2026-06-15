@@ -26,7 +26,7 @@ Différence avec trous_generator :
   - steps  : questions libres sur chaque étape de résolution (réponses plus longues)
 """
 
-from base_generator import (
+from fonctions_python.base_generator import (
     call_mistral,
     generate_test,
     display_score,
@@ -35,7 +35,7 @@ from base_generator import (
     parse_json,
     logger,
 )
-from type_questions.qro_generator import evaluate_answer
+from fonctions_python.type_questions.qro_generator import evaluate_answer
 
 
 # ─── PROMPT ───────────────────────────────────────────────────────────────────
@@ -60,6 +60,7 @@ STEPS_FORMAT = """
   ]
 }
 """
+
 
 def build_prompt(notion_nom: str, competences: list) -> str:
     return f"""
@@ -98,11 +99,12 @@ Règles de sortie — TRÈS IMPORTANT :
 - Pas de texte avant ou après le JSON.
 - Pas de markdown, pas de balises ```json.
 - "questions" et "correct_answers" doivent avoir exactement la même longueur.
-- Chaque étape doit indiquer le code de la compétence travaillée.
+- Chaque étape doit indiquer le nom de la compétence travaillée.
 
 Format attendu :
 {STEPS_FORMAT}
 """
+
 
 # ─── PARSING & VALIDATION ─────────────────────────────────────────────────────
 
@@ -163,15 +165,14 @@ def parse_and_validate(raw: str) -> dict:
 def generate_steps_question(notion_nom: str, competences: list[dict]) -> dict | None:
     """Génère un exercice step by step à partir de compétences déjà choisies."""
 
-    prompt = build_prompt(
-        notion_nom=notion_nom,
-        competences=competences
-    )
+    prompt = build_prompt(notion_nom=notion_nom, competences=competences)
 
     return call_mistral(prompt, notion_nom, parse_and_validate)
 
 
-def generate_steps_test(notion_nom: str, competences_groupes: list[list[dict]]) -> list[dict]:
+def generate_steps_test(
+    notion_nom: str, competences_groupes: list[list[dict]]
+) -> list[dict]:
     """
     Génère plusieurs exercices step by step.
 
@@ -192,6 +193,8 @@ def generate_steps_test(notion_nom: str, competences_groupes: list[list[dict]]) 
             exercices.append(exercice)
 
     return exercices
+
+
 # ─── INTERFACE CONSOLE ────────────────────────────────────────────────────────
 
 

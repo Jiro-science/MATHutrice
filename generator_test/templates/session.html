@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MATHutrice — Session</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+        onload="katexReady=true"></script>
+    <style>
+        :root {
+            --purple-dark: #542365;
+            --purple-light: #8c52f0;
+            --pink-soft: #f8abe0;
+            --pink-hot: #cb0a67;
+            --bg: #fdf5fb;
+            --white: #ffffff;
+            --text-dark: #1a0a20;
+            --text-muted: #7a5a85;
+            --text-light: #b89ec5;
+            --border: rgba(84, 35, 101, 0.12);
+            --shadow: 0 4px 24px rgba(84, 35, 101, 0.08);
+            --radius: 18px;
+            --radius-sm: 10px;
+            --green: #27ae60;
+            --red: #e74c3c;
+            --orange: #f39c12;
+            --grey: #95a5a6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg);
+            color: var(--text-dark);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--purple-dark) 0%, #7a1a5c 50%, var(--pink-hot) 100%);
+            padding: 20px 32px 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            width: 200px;
+            height: 200px;
+            background: rgba(248, 171, 224, 0.15);
+            border-radius: 50%;
+        }
+
+        .header-inner {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 7px 14px;
+            border-radius: 30px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .header-title {
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+            flex: 1;
+        }
+
+        .header-badge {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+
+        .attempts-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        .attempt-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: all 0.3s;
+        }
+
+        .attempt-dot.used {
+            background: var(--red);
+        }
+
+        .attempt-dot.active {
+            background: white;
+        }
+
+        .attempts-label {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
+        }
+
+        .progress-strip {
+            background: rgba(0, 0, 0, 0.2);
+            height: 5px;
+        }
+
+        .progress-strip-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--pink-soft), var(--purple-light));
+            transition: width 0.6s cubic-bezier(.4, 0, .2, 1);
+            width: 0%;
+        }
+
+        .main {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 32px 24px 80px;
+        }
+
+        .state {
+            display: none;
+        }
+
+        .state.active {
+            display: block;
+        }
+
+        .loading-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .loading-spinner {
+            width: 52px;
+            height: 52px;
+            margin: 0 auto 24px;
+            border: 4px solid rgba(140, 82, 240, 0.15);
+            border-top-color: var(--purple-light);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--purple-dark);
+            margin-bottom: 8px;
+        }
+
+        .loading-sub {
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .question-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .question-header {
+            padding: 16px 24px;
+            background: linear-gradient(135deg, rgba(84, 35, 101, 0.05), rgba(203, 10, 103, 0.03));
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .q-counter {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .q-type-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-qcm {
+            background: rgba(140, 82, 240, 0.12);
+            color: var(--purple-light);
+        }
+
+        .badge-qro {
+            background: rgba(203, 10, 103, 0.10);
+            color: var(--pink-hot);
+        }
+
+        .badge-sbs {
+            background: rgba(39, 174, 96, 0.12);
+            color: var(--green);
+        }
+
+        .question-body {
+            padding: 28px 24px 24px;
+        }
+
+        .enonce-block {
+            background: rgba(84, 35, 101, 0.05);
+            border-left: 3px solid var(--purple-light);
+            border-radius: 0 8px 8px 0;
+            padding: 14px 18px;
+            margin-bottom: 24px;
+            font-size: 14px;
+            line-height: 1.75;
+            color: var(--text-dark);
+        }
+
+        .enonce-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--purple-light);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .question-text {
+            font-size: 16px;
+            font-weight: 500;
+            line-height: 1.7;
+            color: var(--text-dark);
+            margin-bottom: 24px;
+        }
+
+        .options-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .option-btn {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+            border-radius: var(--radius-sm);
+            border: 2px solid var(--border);
+            background: var(--white);
+            cursor: pointer;
+            transition: all 0.18s;
+            text-align: left;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            color: var(--text-dark);
+        }
+
+        .option-btn:hover:not(:disabled):not(.disabled):not(.locked) {
+            border-color: var(--purple-light);
+            background: rgba(140, 82, 240, 0.04);
+        }
+
+        .option-btn.selected {
+            border-color: var(--purple-light);
+            background: rgba(140, 82, 240, 0.08);
+        }
+
+        .option-btn.correct {
+            border-color: var(--green);
+            background: rgba(39, 174, 96, 0.08);
+            color: var(--green);
+        }
+
+        .option-btn.wrong {
+            border-color: var(--red);
+            background: rgba(231, 76, 60, 0.08);
+            color: var(--red);
+        }
+
+        .option-btn.disabled {
+            border-color: #ddd;
+            background: #f5f5f5;
+            color: #aaa;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .option-btn.locked {
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .option-btn:disabled {
+            cursor: default;
+        }
+
+        .option-letter {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            flex-shrink: 0;
+            background: rgba(84, 35, 101, 0.08);
+            color: var(--purple-dark);
+            font-weight: 700;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .option-btn.correct .option-letter {
+            background: var(--green);
+            color: white;
+        }
+
+        .option-btn.wrong .option-letter {
+            background: var(--red);
+            color: white;
+        }
+
+        .option-btn.disabled .option-letter {
+            background: #ddd;
+            color: #aaa;
+        }
+
+        .input-wrap {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .answer-input {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            border: 2px solid var(--border);
+            background: var(--white);
+            font-family: 'Poppins', sans-serif;
+            font-size: 15px;
+            color: var(--text-dark);
+            outline: none;
+            transition: border-color 0.2s;
+            resize: vertical;
+            min-height: 56px;
+        }
+
+        .answer-input:focus {
+            border-color: var(--purple-light);
+        }
+
+        .answer-input.correct {
+            border-color: var(--green);
+            background: rgba(39, 174, 96, 0.05);
+        }
+
+        .answer-input.wrong {
+            border-color: var(--red);
+            background: rgba(231, 76, 60, 0.05);
+        }
+
+        .answer-input:disabled {
+            opacity: 0.7;
+            cursor: default;
+        }
+
+        .feedback-block {
+            display: none;
+            padding: 16px 18px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            margin-bottom: 20px;
+            line-height: 1.7;
+        }
+
+        .feedback-block.show {
+            display: block;
+        }
+
+        .feedback-block.wrong {
+            background: rgba(231, 76, 60, 0.06);
+            border: 1px solid rgba(231, 76, 60, 0.2);
+        }
+
+        .feedback-block.correct {
+            background: rgba(39, 174, 96, 0.06);
+            border: 1px solid rgba(39, 174, 96, 0.2);
+            color: var(--green);
+        }
+
+        .feedback-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+
+        .feedback-header.wrong {
+            color: var(--red);
+        }
+
+        .feedback-header.correct {
+            color: var(--green);
+        }
+
+        .feedback-text {
+            color: var(--text-dark);
+            white-space: pre-line;
+        }
+
+        .feedback-loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .feedback-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(84, 35, 101, 0.15);
+            border-top-color: var(--purple-light);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            padding-top: 4px;
+        }
+
+        .btn-primary {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+            background: linear-gradient(135deg, var(--purple-dark), var(--pink-hot));
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(84, 35, 101, 0.3);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-retry {
+            padding: 12px 24px;
+            border: 2px solid var(--orange);
+            border-radius: 12px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--orange);
+            background: rgba(243, 156, 18, 0.06);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-retry:hover {
+            background: rgba(243, 156, 18, 0.12);
+        }
+
+        .btn-skip {
+            padding: 12px 20px;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-skip:hover {
+            border-color: var(--grey);
+            color: var(--text-dark);
+        }
+
+        .btn-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: none;
+        }
+
+        .btn-primary.loading .btn-spinner {
+            display: block;
+        }
+
+        .step-indicator {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--green);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .step-dot {
+            width: 20px;
+            height: 20px;
+            background: var(--green);
+            border-radius: 50%;
+            color: white;
+            font-size: 10px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .steps-nav {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .step-pill {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid var(--border);
+            color: var(--text-muted);
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .step-pill.active {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(39, 174, 96, 0.08);
+        }
+
+        .step-pill.done-correct {
+            background: var(--green);
+            color: white;
+            border-color: var(--green);
+        }
+
+        .step-pill.done-wrong {
+            background: var(--red);
+            color: white;
+            border-color: var(--red);
+        }
+
+        .result-card {
+            background: var(--white);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 48px 32px;
+            text-align: center;
+        }
+
+        .result-emoji {
+            font-size: 56px;
+            margin-bottom: 16px;
+        }
+
+        .result-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--purple-dark);
+            margin-bottom: 8px;
+        }
+
+        .result-score {
+            font-size: 52px;
+            font-weight: 800;
+            color: var(--pink-hot);
+            line-height: 1;
+            margin: 16px 0;
+        }
+
+        .result-sub {
+            font-size: 15px;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        .result-breakdown {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+        }
+
+        .breakdown-item {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 14px 20px;
+            border: 1px solid var(--border);
+            text-align: center;
+            min-width: 90px;
+        }
+
+        .breakdown-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .breakdown-val {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--purple-dark);
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .btn-result {
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-result.primary {
+            background: linear-gradient(135deg, var(--purple-dark), var(--pink-hot));
+            color: white;
+        }
+
+        .btn-result.primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(84, 35, 101, 0.3);
+        }
+
+        .btn-result.ghost {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        .btn-result.ghost:hover {
+            border-color: var(--purple-light);
+            color: var(--purple-dark);
+        }
+
+        /* ── ANIMATION SCORE BOOST ── */
+        .score-boost {
+            position: fixed;
+            pointer-events: none;
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--green);
+            text-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+            z-index: 9999;
+            animation: scoreFloat 1.2s ease-out forwards;
+        }
+
+        @keyframes scoreFloat {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+
+            60% {
+                opacity: 1;
+                transform: translateY(-40px) scale(1.15);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-70px) scale(0.9);
+            }
+        }
+
+        /* ── ANIMATION COMPÉTENCE MAÎTRISÉE ── */
+        .mastery-toast {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: linear-gradient(135deg, var(--purple-dark), var(--green));
+            color: white;
+            font-family: 'Poppins', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            padding: 14px 24px;
+            border-radius: 30px;
+            box-shadow: 0 8px 32px rgba(39, 174, 96, 0.35);
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(.4, 0, .2, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            white-space: nowrap;
+        }
+
+        .mastery-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .mastery-star {
+            font-size: 20px;
+            animation: starPop 0.5s cubic-bezier(.4, 0, .2, 1) 0.2s both;
+        }
+
+        @keyframes starPop {
+            0% {
+                transform: scale(0) rotate(-20deg);
+            }
+
+            70% {
+                transform: scale(1.3) rotate(5deg);
+            }
+
+            100% {
+                transform: scale(1) rotate(0);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .main {
+                padding: 20px 14px 60px;
+            }
+
+            .result-score {
+                font-size: 40px;
+            }
+
+            .result-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Toast compétence maîtrisée -->
+    <div class="mastery-toast" id="masteryToast">
+        <span class="mastery-star">⭐</span>
+        <span id="masteryText">Compétence maîtrisée !</span>
+    </div>
+
+    <div class="header">
+        <div class="header-inner">
+            <a class="back-btn" id="backBtn" href="/">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10 3L5 8l5 5" />
+                </svg>
+                Retour
+            </a>
+            <div class="header-title" id="headerTitle">Chargement…</div>
+            <div class="header-badge" id="headerBadge">–</div>
+            <div class="attempts-row" id="attemptsRow" style="display:none">
+                <span class="attempts-label">Essais</span>
+                <div class="attempt-dot active" id="dot1"></div>
+                <div class="attempt-dot" id="dot2"></div>
+                <div class="attempt-dot" id="dot3"></div>
+            </div>
+        </div>
+    </div>
+    <div class="progress-strip">
+        <div class="progress-strip-fill" id="progressFill"></div>
+    </div>
+
+    <div class="main">
+        <div class="state active" id="stateLoading">
+            <div class="loading-card">
+                <div class="loading-spinner"></div>
+                <div class="loading-title" id="loadingTitle">Préparation de ta session…</div>
+                <div class="loading-sub" id="loadingSub">Mistral génère tes exercices selon ton profil</div>
+            </div>
+        </div>
+
+        <div class="state" id="stateQuestion">
+            <div class="question-card">
+                <div class="question-header">
+                    <span class="q-counter" id="qCounter">Question 1</span>
+                    <span class="q-type-badge" id="qTypeBadge">QCM</span>
+                </div>
+                <div class="question-body" id="questionBody"></div>
+            </div>
+        </div>
+
+        <div class="state" id="stateResults">
+            <div class="result-card">
+                <div class="result-emoji" id="resultEmoji">🎯</div>
+                <div class="result-title" id="resultTitle">Session terminée</div>
+                <div class="result-score" id="resultScore">0%</div>
+                <div class="result-sub" id="resultSub"></div>
+                <div class="result-breakdown" id="resultBreakdown"></div>
+                <div class="result-actions" id="resultActions"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(location.search);
+        const NOTION_KEY = params.get('notion_key') || '';
+        const MODULE_URL = `/module?id=${params.get('module_id') || NOTION_KEY}`;
+        const COMPETENCE_CODE = params.get('competence_code') || '';
+        const STORAGE_KEY = `mathutrice_session_${NOTION_KEY}${COMPETENCE_CODE ? '_' + COMPETENCE_CODE : ''}`;
+        const SESSION_TTL = 24 * 60 * 60 * 1000;
+
+        let questions = [];
+        let currentIndex = 0;
+        let sessionType = '';
+        let notionNom = '';
+        let scoreTotal = 0;
+        let scoreMax = 0;
+        const typeStats = { qcm: [0, 0], qro: [0, 0], sbs: [0, 0] };
+        let currentAttempt = 1;
+        let scoreSubmittedForCurrent = false;
+        let wrongOptionsQCM = new Set();
+        let sbsCurrentStep = 0;
+        let sbsResults = [];
+        let sbsAttempt = 1;
+        let sbsScoreSubmitted = false;
+
+        // ─── PERSISTENCE ──────────────────────────────────────────────────
+        function saveSession() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    savedAt: Date.now(), questions, currentIndex, sessionType, notionNom,
+                    scoreTotal, scoreMax, typeStats: JSON.parse(JSON.stringify(typeStats)),
+                }));
+            } catch (e) { }
+        }
+
+        function loadSession() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return null;
+                const state = JSON.parse(raw);
+                if (!state.savedAt || Date.now() - state.savedAt > SESSION_TTL) { localStorage.removeItem(STORAGE_KEY); return null; }
+                return state;
+            } catch (e) { return null; }
+        }
+
+        function clearSession() { try { localStorage.removeItem(STORAGE_KEY); } catch (e) { } }
+
+        function restoreState(state) {
+            questions = state.questions || []; currentIndex = state.currentIndex || 0;
+            sessionType = state.sessionType || ''; notionNom = state.notionNom || '';
+            scoreTotal = state.scoreTotal || 0; scoreMax = state.scoreMax || 0;
+            if (state.typeStats) { typeStats.qcm = state.typeStats.qcm || [0, 0]; typeStats.qro = state.typeStats.qro || [0, 0]; typeStats.sbs = state.typeStats.sbs || [0, 0]; }
+        }
+
+        // ─── ANIMATIONS ───────────────────────────────────────────────────
+        function animateScoreBoost() {
+            const btn = document.getElementById('submitBtn') || document.querySelector('.btn-primary');
+            if (!btn) return;
+            const rect = btn.getBoundingClientRect();
+            const el = document.createElement('div');
+            el.className = 'score-boost';
+            el.textContent = '+1 ✓';
+            el.style.left = (rect.left + rect.width / 2 - 20) + 'px';
+            el.style.top = (rect.top - 10) + 'px';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1300);
+        }
+
+        function animateMastery(competenceNom) {
+            const toast = document.getElementById('masteryToast');
+            document.getElementById('masteryText').textContent = `${competenceNom} — Maîtrisée ! ⭐`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function checkMastery(newScores, competences) {
+            if (!newScores || !competences) return;
+            // competences peut être un objet ou une liste
+            const compList = Array.isArray(competences) ? competences : [competences];
+            for (const comp of compList) {
+                if (comp && newScores[comp.code] >= 1.0) {
+                    setTimeout(() => animateMastery(comp.nom), 400);
+                    break;
+                }
+            }
+        }
+
+        // ─── LOCK / UNLOCK ────────────────────────────────────────────────
+        function lockInput() {
+            const qroInput = document.getElementById('qroInput');
+            const sbsInput = document.getElementById('sbsInput');
+            if (qroInput) qroInput.disabled = true;
+            if (sbsInput) sbsInput.disabled = true;
+            document.querySelectorAll('.option-btn:not(.disabled):not(.wrong):not(.correct)').forEach(b => {
+                b.classList.add('locked'); b.setAttribute('onclick', '');
+            });
+        }
+
+        function unlockInput() {
+            const qroInput = document.getElementById('qroInput');
+            const sbsInput = document.getElementById('sbsInput');
+            if (qroInput) { qroInput.disabled = false; qroInput.classList.remove('wrong'); qroInput.value = ''; qroInput.focus(); }
+            if (sbsInput) { sbsInput.disabled = false; sbsInput.classList.remove('wrong'); sbsInput.value = ''; sbsInput.focus(); }
+            document.querySelectorAll('.option-btn.locked').forEach(b => {
+                const idx = parseInt(b.getAttribute('data-index'));
+                b.classList.remove('locked');
+                b.setAttribute('onclick', `selectQCMOption(this, ${idx})`);
+            });
+        }
+
+        // ─── MATH ─────────────────────────────────────────────────────────
+        function renderMath(el) {
+            if (window.renderMathInElement) {
+                renderMathInElement(el, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }, { left: '\\(', right: '\\)', display: false }, { left: '\\[', right: '\\]', display: true }], throwOnError: false });
+            }
+        }
+
+        function showState(id) { document.querySelectorAll('.state').forEach(s => s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+
+        function updateProgress() {
+            const total = questions.length;
+            const pct = total === 0 ? 0 : Math.round((currentIndex / total) * 100);
+            document.getElementById('progressFill').style.width = pct + '%';
+            document.getElementById('qCounter').textContent = `Question ${currentIndex + 1}`;
+        }
+
+        function updateAttemptDots() {
+            for (let i = 1; i <= 3; i++) {
+                const dot = document.getElementById(`dot${i}`);
+                dot.className = 'attempt-dot';
+                if (i < currentAttempt) dot.classList.add('used');
+                else if (i === currentAttempt) dot.classList.add('active');
+            }
+        }
+
+        function updateHeader() {
+            document.getElementById('headerTitle').textContent = notionNom;
+            document.getElementById('headerBadge').textContent = sessionType === 'positionnement' ? 'Positionnement' : 'Entraînement';
+            document.getElementById('attemptsRow').style.display = sessionType === 'positionnement' ? 'none' : 'flex';
+        }
+
+        // ─── INIT ─────────────────────────────────────────────────────────
+        async function init() {
+            if (!NOTION_KEY) { document.getElementById('loadingTitle').textContent = 'Paramètre notion_key manquant.'; return; }
+            document.getElementById('backBtn').href = MODULE_URL;
+
+            const saved = loadSession();
+            if (saved && saved.questions && saved.questions.length > 0 && saved.currentIndex < saved.questions.length) {
+                restoreState(saved); updateHeader(); resetAttempts(); showQuestion(); return;
+            }
+
+            // Mode entraînement ciblé sur une compétence
+            if (COMPETENCE_CODE) {
+                document.getElementById('loadingTitle').textContent = 'Entraînement ciblé…';
+                document.getElementById('loadingSub').textContent = 'Questions spécifiques à ce sous-thème';
+                await loadNextTargeted(true);
+                return;
+            }
+
+            let firstSession = true;
+            try {
+                const res = await fetch(`/session/check?notion_key=${encodeURIComponent(NOTION_KEY)}`);
+                const data = await res.json();
+                firstSession = data.first_session;
+            } catch (e) { }
+
+            if (firstSession) {
+                document.getElementById('loadingTitle').textContent = 'Test de positionnement…';
+                document.getElementById('loadingSub').textContent = 'Première session sur ce module — 10 questions pour calibrer ton niveau';
+                await loadPositioning();
+            } else {
+                document.getElementById('loadingTitle').textContent = 'Génération de ta première question…';
+                document.getElementById('loadingSub').textContent = 'Adapté à ton niveau actuel';
+                await loadNextQuestion(true);
+            }
+        }
+
+        async function loadPositioning() {
+            try {
+                const res = await fetch('/session/positioning', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_key: NOTION_KEY }) });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Erreur serveur');
+                questions = data.questions; sessionType = 'positionnement'; notionNom = data.notion_nom;
+                currentIndex = 0; updateHeader(); resetAttempts(); saveSession(); showQuestion();
+            } catch (e) { document.getElementById('loadingTitle').textContent = 'Erreur : ' + e.message; }
+        }
+
+        async function loadNextQuestion(first = false) {
+            if (!first) showState('stateLoading');
+            try {
+                const res = await fetch('/session/next', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_key: NOTION_KEY }) });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Erreur serveur');
+                questions = [...questions, ...(data.questions || [])];
+                sessionType = 'entrainement'; notionNom = data.notion_nom;
+                updateHeader(); resetAttempts(); saveSession(); showQuestion();
+            } catch (e) { document.getElementById('loadingTitle').textContent = 'Erreur : ' + e.message; }
+        }
+
+        async function loadNextTargeted(first = false) {
+            if (!first) showState('stateLoading');
+            try {
+                const res = await fetch('/session/next_targeted', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notion_key: NOTION_KEY, competence_code: COMPETENCE_CODE }),
+                });
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Erreur serveur');
+                questions = [...questions, ...(data.questions || [])];
+                sessionType = 'entrainement';
+                notionNom = data.notion_nom;
+                updateHeader();
+                document.getElementById('headerBadge').textContent = 'Ciblé';
+                resetAttempts(); saveSession(); showQuestion();
+            } catch (e) { document.getElementById('loadingTitle').textContent = 'Erreur : ' + e.message; }
+        }
+
+        function resetAttempts() { currentAttempt = 1; scoreSubmittedForCurrent = false; wrongOptionsQCM = new Set(); updateAttemptDots(); }
+
+        function showQuestion() {
+            if (currentIndex >= questions.length) { if (sessionType === 'positionnement') { showResults(); return; } loadNextQuestion(); return; }
+            updateProgress(); showState('stateQuestion');
+            const q = questions[currentIndex];
+            const badge = document.getElementById('qTypeBadge');
+            badge.textContent = q.type.toUpperCase(); badge.className = `q-type-badge badge-${q.type}`;
+            const body = document.getElementById('questionBody');
+            if (q.type === 'qcm') renderQCM(body, q);
+            else if (q.type === 'qro') renderQRO(body, q);
+            else if (q.type === 'sbs') renderSBS(body, q);
+            renderMath(body);
+        }
+
+        // ─── QCM ──────────────────────────────────────────────────────────
+        let selectedQCMIndex = null;
+
+        function renderQCM(container, q) {
+            const letters = ['A', 'B', 'C', 'D']; selectedQCMIndex = null;
+            container.innerHTML = `
+            <div class="question-text">${q.question}</div>
+            <div class="options-grid" id="optionsGrid">
+                ${q.options.map((opt, i) => { const isDisabled = wrongOptionsQCM.has(i); return `<button class="option-btn${isDisabled ? ' disabled' : ''}" data-index="${i}" onclick="${isDisabled ? '' : `selectQCMOption(this, ${i})`}" ${isDisabled ? 'disabled' : ''}><span class="option-letter">${letters[i]}</span><span>${opt}</span></button>`; }).join('')}
+            </div>
+            <div class="feedback-block" id="feedbackBlock"></div>
+            <div class="action-row" id="actionRow">
+                <button class="btn-skip" onclick="endSession()">Terminer</button>
+                <button class="btn-primary" id="submitBtn" onclick="submitQCM()" disabled><div class="btn-spinner"></div><span>Valider</span></button>
+            </div>`;
+            renderMath(container);
+        }
+
+        function selectQCMOption(btn, idx) {
+            document.querySelectorAll('.option-btn:not(.disabled):not(.locked)').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected'); selectedQCMIndex = idx;
+            document.getElementById('submitBtn').disabled = false;
+        }
+
+        async function submitQCM() {
+            const q = questions[currentIndex];
+            if (selectedQCMIndex === null) return;
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.classList.add('loading'); submitBtn.disabled = true;
+
+            const chosen = q.options[selectedQCMIndex];
+            const correct = chosen === q.answer;
+
+            if (correct) {
+                document.querySelectorAll('.option-btn').forEach((btn, i) => { btn.disabled = true; if (q.options[i] === q.answer) btn.classList.add('correct'); });
+                updateScore('qcm', true);
+                animateScoreBoost();
+                const newScores = await submitAnswer({ [q.competence_cible?.code]: true }, 'QCM', q.competence_cible?.niveau);
+                checkMastery(newScores, q.competence_cible);
+                scoreSubmittedForCurrent = true;
+                showFeedbackSuccess(); submitBtn.classList.remove('loading'); showNextButton();
+            } else {
+                if (!scoreSubmittedForCurrent) {
+                    scoreSubmittedForCurrent = true;
+                    await submitAnswer({ [q.competence_cible?.code]: false }, 'QCM', q.competence_cible?.niveau);
+                }
+                document.querySelectorAll('.option-btn')[selectedQCMIndex].classList.add('wrong');
+                document.querySelectorAll('.option-btn')[selectedQCMIndex].disabled = true;
+                wrongOptionsQCM.add(selectedQCMIndex);
+                submitBtn.classList.remove('loading');
+
+                if (sessionType === 'positionnement') { updateScore('qcm', false); showNextButton(true); }
+                else {
+                    lockInput(); showFeedbackLoading();
+                    const feedback = await getFeedback(q, chosen, currentAttempt, 'qcm');
+                    showFeedbackWrong(feedback, currentAttempt);
+                    currentAttempt++; updateAttemptDots();
+                    if (currentAttempt <= 3) { showRetryButtons(); selectedQCMIndex = null; }
+                    else { updateScore('qcm', false); showNextButton(true); }
+                }
+            }
+        }
+
+        // ─── QRO ──────────────────────────────────────────────────────────
+        function renderQRO(container, q) {
+            container.innerHTML = `
+            <div class="question-text">${q.question}</div>
+            <div class="input-wrap"><div class="input-label">Ta réponse</div><textarea class="answer-input" id="qroInput" placeholder="Écris ta réponse ici…" rows="2"></textarea></div>
+            <div class="feedback-block" id="feedbackBlock"></div>
+            <div class="action-row" id="actionRow">
+                <button class="btn-skip" onclick="endSession()">Terminer</button>
+                <button class="btn-primary" id="submitBtn" onclick="submitQRO()"><div class="btn-spinner"></div><span>Valider</span></button>
+            </div>`;
+            renderMath(container); document.getElementById('qroInput').focus();
+        }
+
+        async function submitQRO() {
+            const q = questions[currentIndex];
+            const input = document.getElementById('qroInput');
+            const userAnswer = input.value.trim();
+            if (!userAnswer) return;
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.classList.add('loading'); submitBtn.disabled = true; input.disabled = true;
+
+            let correct = false;
+            try {
+                const res = await fetch('/session/evaluate_qro', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q.question, correct_answer: q.correct_answer, user_answer: userAnswer }) });
+                const data = await res.json(); correct = data.correct;
+            } catch (e) { }
+
+            if (correct) {
+                input.classList.add('correct');
+                updateScore('qro', true);
+                animateScoreBoost();
+                const newScores = await submitAnswer({ [q.competence_cible?.code]: true }, 'QRO', q.competence_cible?.niveau);
+                checkMastery(newScores, q.competence_cible);
+                scoreSubmittedForCurrent = true;
+                showFeedbackSuccess(); submitBtn.classList.remove('loading'); showNextButton();
+            } else {
+                input.classList.add('wrong');
+                if (!scoreSubmittedForCurrent) { scoreSubmittedForCurrent = true; await submitAnswer({ [q.competence_cible?.code]: false }, 'QRO', q.competence_cible?.niveau); }
+                submitBtn.classList.remove('loading');
+                if (sessionType === 'positionnement') { updateScore('qro', false); showNextButton(true); }
+                else {
+                    showFeedbackLoading();
+                    const feedback = await getFeedback(q, userAnswer, currentAttempt, 'qro');
+                    showFeedbackWrong(feedback, currentAttempt);
+                    currentAttempt++; updateAttemptDots();
+                    if (currentAttempt <= 3) showRetryButtons();
+                    else { updateScore('qro', false); showNextButton(true); }
+                }
+            }
+        }
+
+        // ─── SBS ──────────────────────────────────────────────────────────
+        function renderSBS(container, q) {
+            sbsCurrentStep = 0; sbsResults = new Array(q.questions.length).fill(null); sbsAttempt = 1; sbsScoreSubmitted = false;
+            container.innerHTML = `
+            <div class="enonce-block"><div class="enonce-label">Énoncé</div>${q.enonce}</div>
+            <div class="steps-nav" id="stepsNav"></div>
+            <div id="sbsStepContent"></div>
+            <div class="feedback-block" id="feedbackBlock"></div>
+            <div class="action-row" id="actionRow">
+                <button class="btn-skip" onclick="endSession()">Terminer</button>
+                <button class="btn-primary" id="submitBtn" onclick="submitSBSStep()"><div class="btn-spinner"></div><span>Valider l'étape</span></button>
+            </div>`;
+            renderMath(container); renderSBSNav(q); renderSBSStep(q, 0);
+        }
+
+        function renderSBSNav(q) {
+            const nav = document.getElementById('stepsNav');
+            nav.innerHTML = q.questions.map((_, i) => {
+                let cls = 'step-pill';
+                if (i === sbsCurrentStep) cls += ' active';
+                else if (sbsResults[i] === true) cls += ' done-correct';
+                else if (sbsResults[i] === false) cls += ' done-wrong';
+                return `<div class="${cls}">${i + 1}</div>`;
+            }).join('');
+        }
+
+        function renderSBSStep(q, stepIdx) {
+            const content = document.getElementById('sbsStepContent');
+            content.innerHTML = `
+            <div class="step-indicator"><div class="step-dot">${stepIdx + 1}</div>Étape ${stepIdx + 1} / ${q.questions.length}</div>
+            <div class="question-text">${q.questions[stepIdx]}</div>
+            <div class="input-wrap"><div class="input-label">Ta réponse pour cette étape</div><textarea class="answer-input" id="sbsInput" placeholder="Écris ta réponse…" rows="2"></textarea></div>`;
+            renderMath(content); document.getElementById('sbsInput').focus();
+        }
+
+        async function submitSBSStep() {
+            const q = questions[currentIndex];
+            const input = document.getElementById('sbsInput');
+            const userAnswer = input.value.trim();
+            if (!userAnswer) return;
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.classList.add('loading'); submitBtn.disabled = true; input.disabled = true;
+
+            let correct = false;
+            try {
+                const res = await fetch('/session/evaluate_qro', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q.questions[sbsCurrentStep], correct_answer: q.correct_answers[sbsCurrentStep], user_answer: userAnswer }) });
+                const data = await res.json(); correct = data.correct;
+            } catch (e) { }
+
+            const comp = q.competences_cibles && q.competences_cibles[sbsCurrentStep];
+
+            if (correct) {
+                input.classList.add('correct'); sbsResults[sbsCurrentStep] = true; renderSBSNav(q);
+                const fb = document.getElementById('feedbackBlock');
+                fb.className = 'feedback-block show correct';
+                fb.innerHTML = `<div class="feedback-header correct">✅ Étape ${sbsCurrentStep + 1} réussie !</div>`;
+                animateScoreBoost();
+                if (!sbsScoreSubmitted) {
+                    sbsScoreSubmitted = true;
+                    const newScores = await submitAnswer({ [comp?.code]: true }, 'SBS', comp?.niveau || 'basique');
+                    checkMastery(newScores, comp);
+                }
+                submitBtn.classList.remove('loading'); sbsAttempt = 1; sbsScoreSubmitted = false;
+                const nextStep = sbsCurrentStep + 1;
+                if (nextStep < q.questions.length) {
+                    submitBtn.textContent = 'Étape suivante →'; submitBtn.disabled = false;
+                    submitBtn.onclick = () => { sbsCurrentStep = nextStep; document.getElementById('feedbackBlock').className = 'feedback-block'; renderSBSNav(q); renderSBSStep(q, nextStep); submitBtn.textContent = "Valider l'étape"; submitBtn.onclick = submitSBSStep; submitBtn.disabled = false; renderMath(document.getElementById('questionBody')); };
+                } else { updateScore('sbs', null, sbsResults); showNextButton(); }
+            } else {
+                input.classList.add('wrong'); sbsResults[sbsCurrentStep] = false; renderSBSNav(q);
+                if (!sbsScoreSubmitted) { sbsScoreSubmitted = true; await submitAnswer({ [comp?.code]: false }, 'SBS', comp?.niveau || 'basique'); }
+                submitBtn.classList.remove('loading');
+
+                if (sessionType === 'positionnement') {
+                    const nextStep = sbsCurrentStep + 1;
+                    if (nextStep < q.questions.length) {
+                        submitBtn.textContent = 'Étape suivante →'; submitBtn.disabled = false;
+                        submitBtn.onclick = () => { sbsCurrentStep = nextStep; sbsAttempt = 1; sbsScoreSubmitted = false; document.getElementById('feedbackBlock').className = 'feedback-block'; renderSBSNav(q); renderSBSStep(q, nextStep); submitBtn.textContent = "Valider l'étape"; submitBtn.onclick = submitSBSStep; submitBtn.disabled = false; renderMath(document.getElementById('questionBody')); };
+                    } else { updateScore('sbs', null, sbsResults); showNextButton(true); }
+                } else {
+                    showFeedbackLoading();
+                    const stepQ = { question: q.questions[sbsCurrentStep], correct_answer: q.correct_answers[sbsCurrentStep], competence_cible: comp, notion_nom: q.notion_nom, type: 'sbs' };
+                    const feedback = await getFeedback(stepQ, userAnswer, sbsAttempt, 'sbs');
+                    showFeedbackWrong(feedback, sbsAttempt); sbsAttempt++;
+                    if (sbsAttempt <= 3) { showRetryButtons('sbs'); }
+                    else {
+                        const nextStep = sbsCurrentStep + 1;
+                        if (nextStep < q.questions.length) {
+                            submitBtn.textContent = 'Étape suivante →'; submitBtn.disabled = false;
+                            submitBtn.onclick = () => { sbsCurrentStep = nextStep; sbsAttempt = 1; sbsScoreSubmitted = false; document.getElementById('feedbackBlock').className = 'feedback-block'; renderSBSNav(q); renderSBSStep(q, nextStep); submitBtn.textContent = "Valider l'étape"; submitBtn.onclick = submitSBSStep; submitBtn.disabled = false; renderMath(document.getElementById('questionBody')); };
+                        } else { updateScore('sbs', null, sbsResults); showNextButton(true); }
+                    }
+                }
+            }
+        }
+
+        // ─── FEEDBACK ─────────────────────────────────────────────────────
+        async function getFeedback(q, userAnswer, attempt, qType) {
+            try {
+                const comp = q.competence_cible || (q.competences_cibles && q.competences_cibles[0]) || {};
+                const res = await fetch('/session/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q.question || '', correct_answer: q.correct_answer || '', user_answer: userAnswer, attempt, competence: comp, notion_nom: q.notion_nom || notionNom, question_type: qType }) });
+                const data = await res.json(); return data.feedback || '';
+            } catch (e) { return ''; }
+        }
+
+        function showFeedbackLoading() {
+            lockInput();
+            const fb = document.getElementById('feedbackBlock');
+            fb.className = 'feedback-block show wrong';
+            fb.innerHTML = `<div class="feedback-loading"><div class="feedback-spinner"></div>Analyse de ta réponse…</div>`;
+        }
+
+        function showFeedbackWrong(text, attempt) {
+            const emoji = attempt === 1 ? '🤔' : attempt === 2 ? '💡' : '📖';
+            const label = attempt === 1 ? 'Pas tout à fait…' : attempt === 2 ? 'On creuse un peu…' : 'Dernière tentative…';
+            const fb = document.getElementById('feedbackBlock');
+            fb.className = 'feedback-block show wrong';
+            fb.innerHTML = `<div class="feedback-header wrong">${emoji} ${label}</div><div class="feedback-text">${text || 'Vérifie ton raisonnement.'}</div>`;
+        }
+
+        function showFeedbackSuccess() {
+            const fb = document.getElementById('feedbackBlock');
+            fb.className = 'feedback-block show correct';
+            fb.innerHTML = `<div class="feedback-header correct">✅ Correct !</div>`;
+        }
+        // ─── BOUTONS ──────────────────────────────────────────────────────
+        function showNextButton(forcedPass = false) {
+            document.getElementById('actionRow').innerHTML = `
+            <button class="btn-skip" onclick="endSession()">Terminer</button>
+            <button class="btn-primary" onclick="advance()">Question suivante →</button>`;
+        }
+
+        function showRetryButtons(type = '') {
+            document.getElementById('actionRow').innerHTML = `
+            <button class="btn-skip" onclick="endSession()">Terminer</button>
+            <button class="btn-skip" onclick="advance()">Passer</button>
+            <button class="btn-retry" onclick="retryQuestion('${type}')">🔄 Réessayer</button>`;
+        }
+
+        function retryQuestion(type) {
+            unlockInput();
+            const actionRow = document.getElementById('actionRow');
+            if (type === 'sbs') {
+                actionRow.innerHTML = `<button class="btn-skip" onclick="endSession()">Terminer</button><button class="btn-primary" id="submitBtn" onclick="submitSBSStep()"><div class="btn-spinner"></div><span>Valider l'étape</span></button>`;
+            } else if (questions[currentIndex].type === 'qcm') {
+                selectedQCMIndex = null;
+                actionRow.innerHTML = `<button class="btn-skip" onclick="endSession()">Terminer</button><button class="btn-primary" id="submitBtn" onclick="submitQCM()" disabled><div class="btn-spinner"></div><span>Valider</span></button>`;
+            } else {
+                actionRow.innerHTML = `<button class="btn-skip" onclick="endSession()">Terminer</button><button class="btn-primary" id="submitBtn" onclick="submitQRO()"><div class="btn-spinner"></div><span>Valider</span></button>`;
+            }
+        }
+
+        // ─── SCORE ────────────────────────────────────────────────────────
+        function updateScore(type, correct, sbsResultsArr = null) {
+            if (type === 'sbs' && sbsResultsArr) {
+                const ok = sbsResultsArr.filter(r => r === true).length; const tot = sbsResultsArr.length;
+                scoreTotal += ok; scoreMax += tot; typeStats.sbs[0] += ok; typeStats.sbs[1] += tot;
+            } else {
+                scoreTotal += correct ? 1 : 0; scoreMax += 1;
+                typeStats[type][0] += correct ? 1 : 0; typeStats[type][1] += 1;
+            }
+            saveSession();
+        }
+
+        async function submitAnswer(competencesDict, qType, qNiveau) {
+            // Filtrer les clés undefined
+            const cleanDict = {};
+            for (const [k, v] of Object.entries(competencesDict)) { if (k && k !== 'undefined') cleanDict[k] = v; }
+            if (Object.keys(cleanDict).length === 0) return null;
+            try {
+                const res = await fetch('/session/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_key: NOTION_KEY, competences_dict: cleanDict, question_type: qType, question_niveau: qNiveau || 'basique' }) });
+                const data = await res.json();
+                return data.new_scores || null;
+            } catch (e) { return null; }
+        }
+
+        // ─── NAVIGATION ───────────────────────────────────────────────────
+        async function advance() {
+            currentIndex++; resetAttempts(); saveSession();
+            const fb = document.getElementById('feedbackBlock');
+            if (fb) fb.className = 'feedback-block';
+            if (sessionType === 'positionnement') { if (currentIndex >= questions.length) { showResults(); return; } showQuestion(); }
+            else if (COMPETENCE_CODE) await loadNextTargeted();
+            else await loadNextQuestion();
+        }
+
+        // ─── RÉSULTATS ────────────────────────────────────────────────────
+        function showResults() {
+            clearSession(); showState('stateResults');
+            document.getElementById('progressFill').style.width = '100%';
+            document.getElementById('attemptsRow').style.display = 'none';
+            const pct = scoreMax === 0 ? 0 : Math.round((scoreTotal / scoreMax) * 100);
+            let emoji = '💪'; let title = 'Continue tes efforts !';
+            if (pct >= 90) { emoji = '🏆'; title = 'Excellent travail !'; }
+            else if (pct >= 70) { emoji = '👍'; title = 'Bien joué !'; }
+            else if (pct >= 50) { emoji = '📚'; title = 'Encore un effort !'; }
+            document.getElementById('resultEmoji').textContent = emoji;
+            document.getElementById('resultTitle').textContent = title;
+            document.getElementById('resultScore').textContent = pct + '%';
+            document.getElementById('resultSub').textContent = `${scoreTotal} bonne${scoreTotal > 1 ? 's' : ''} réponse${scoreTotal > 1 ? 's' : ''} sur ${scoreMax}`;
+            const breakdown = document.getElementById('resultBreakdown');
+            const types = [{ key: 'qcm', label: 'QCM' }, { key: 'qro', label: 'QRO' }, { key: 'sbs', label: 'SBS' }];
+            breakdown.innerHTML = types.filter(t => typeStats[t.key][1] > 0).map(t => { const [ok, tot] = typeStats[t.key]; return `<div class="breakdown-item"><div class="breakdown-label">${t.label}</div><div class="breakdown-val">${ok}/${tot}</div></div>`; }).join('');
+            const actions = document.getElementById('resultActions');
+            const lastType = sessionType;
+            if (lastType === 'positionnement') {
+                actions.innerHTML = `<button class="btn-result ghost" onclick="goBack()">← Retour au module</button><button class="btn-result primary" onclick="startTraining()">🎯 S'entraîner</button>`;
+            } else {
+                actions.innerHTML = `<button class="btn-result ghost" onclick="goBack()">← Retour au module</button><button class="btn-result ghost" onclick="restartSession()">🔄 Recommencer</button><button class="btn-result primary" onclick="continueTraining()">Continuer →</button>`;
+            }
+        }
+
+        function goBack() { window.location.href = MODULE_URL; }
+
+        async function startTraining() {
+            clearSession(); questions = []; currentIndex = 0; scoreTotal = 0; scoreMax = 0;
+            typeStats.qcm = [0, 0]; typeStats.qro = [0, 0]; typeStats.sbs = [0, 0];
+            showState('stateLoading');
+            document.getElementById('loadingTitle').textContent = 'Génération de ta première question…';
+            document.getElementById('loadingSub').textContent = 'Adapté à ton niveau actuel';
+            await loadNextQuestion(true);
+        }
+
+        async function continueTraining() {
+            clearSession(); questions = []; currentIndex = 0; scoreTotal = 0; scoreMax = 0;
+            typeStats.qcm = [0, 0]; typeStats.qro = [0, 0]; typeStats.sbs = [0, 0];
+            showState('stateLoading');
+            document.getElementById('loadingTitle').textContent = 'Génération de ta prochaine question…';
+            document.getElementById('loadingSub').textContent = 'Adapté à ton niveau actuel';
+            await loadNextQuestion(true);
+        }
+
+        // Cherchez une fonction qui ressemble à ça dans session.html
+        async function getFeedback(q, userAnswer, attempt, qType) {
+            try {
+                const comp = q.competence_cible || (q.competences_cibles && q.competences_cibles[0]) || {};
+                const res = await fetch('/session/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q.question || '', correct_answer: q.correct_answer || '', user_answer: userAnswer, attempt, competence: comp, notion_nom: q.notion_nom || notionNom, question_type: qType }) });
+                const data = await res.json(); return data.feedback || '';
+            } catch (e) { return ''; }
+        }
+
+        function showFeedbackLoading() {
+            lockInput();
+            const fb = document.getElementById('feedbackBlock');
+            fb.className = 'feedback-block show wrong';
+            fb.innerHTML = `<div class="feedback-loading"><div class="feedback-spinner"></div>Analyse de ta réponse…</div>`;
+        }
+
+        function showFeedbackWrong(text, attempt) {
+            const emoji = attempt === 1 ? '🤔' : attempt === 2 ? '💡' : '📖';
+            const label = attempt === 1 ? 'Pas tout à fait…' : attempt === 2 ? 'On creuse un peu…' : 'Dernière tentative…';
+            const fb = document.getElementById('feedbackBlock');
+            fb.className = 'feedback-block show wrong';
+            fb.innerHTML = `<div class="feedback-header wrong">${emoji} ${label}</div><div class="feedback-text">${text || 'Vérifie ton raisonnement.'}</div>`;
+        }
+
+        function showFeedbackSuccess() {
+            const fb = document.getElementById('feedbackBlock');
+            fb.className = 'feedback-block show correct';
+            fb.innerHTML = `<div class="feedback-header correct">✅ Correct !</div>`;
+        }
+
+        async function restartSession() {
+            showState('stateLoading');
+            document.getElementById('loadingTitle').textContent = 'Réinitialisation…';
+            document.getElementById('loadingSub').textContent = 'Remise à zéro de tes scores pour ce module';
+            try { await fetch('/session/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_key: NOTION_KEY }) }); } catch (e) { }
+            clearSession(); questions = []; currentIndex = 0; scoreTotal = 0; scoreMax = 0;
+            typeStats.qcm = [0, 0]; typeStats.qro = [0, 0]; typeStats.sbs = [0, 0];
+            document.getElementById('loadingTitle').textContent = 'Test de positionnement…';
+            document.getElementById('loadingSub').textContent = 'Nouvelle session — tes scores ont été réinitialisés';
+            await loadPositioning();
+        }
+
+        function endSession() { showResults(); }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+
+</html>
