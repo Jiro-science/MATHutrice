@@ -401,9 +401,9 @@ def update_scores(REFERENTIEL, question_format, competences_dict):
             code_competence = competence["code"]
             if code_competence in competences_dict:
                 if competences_dict[code_competence] is True:
-                    competence["score"] += bonus
+                    competence["score"] = min(1, competence["score"] + bonus)
                 else:
-                    competence["score"] += malus
+                    competence["score"] = max(0, competence["score"] + malus)
 
     nouveaux_scores = {}
     for notion in REFERENTIEL.values():
