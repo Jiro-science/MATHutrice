@@ -1435,6 +1435,64 @@ async def feedback_endpoint(
 
 
 # ------------------------------------------------------------------
+# SESSION — scores actuels de toutes les compétences d'une notion
+# ------------------------------------------------------------------
+
+
+@app.get("/session/scores")
+async def get_scores_endpoint(
+    request: Request,
+    notion_key: str,
+    session: Session = Depends(get_session),
+):
+    user = get_current_user(request) or {"email": "test@epf.fr"}
+
+    sso_id = session.exec(
+        select(models.User.sso_id).where(models.User.email == user["email"])
+    ).first()
+
+    if not sso_id:
+        return JSONResponse(
+            status_code=404, content={"detail": "Utilisateur introuvable"}
+        )
+
+    try:
+        from fonctions_python.main import REFERENTIEL
+
+        if notion_key not in REFERENTIEL:
+            return JSONResponse(
+                status_code=400, content={"ok": False, "error": "Notion inconnue"}
+            )
+
+        codes = [c["code"] for c in REFERENTIEL[notion_key]["competences"]]
+
+        rows = session.exec(
+            select(models.Progression).where(
+                models.Progression.sso_id == sso_id,
+                models.Progression.competence_id.in_(codes),
+            )
+        ).all()
+
+        scores_db = {row.competence_id: float(row.score) for row in rows}
+
+        competences = []
+        for comp in REFERENTIEL[notion_key]["competences"]:
+            competences.append(
+                {
+                    "code": comp["code"],
+                    "nom": comp["nom"],
+                    "niveau": comp["niveau"],
+                    "score": scores_db.get(comp["code"], 0.5),
+                }
+            )
+
+        return {"ok": True, "competences": competences}
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+
+# ------------------------------------------------------------------
 # Run app
 # ------------------------------------------------------------------
 

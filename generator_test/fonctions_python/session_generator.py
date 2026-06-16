@@ -95,23 +95,20 @@ def build_notion_data_with_scores(
 
 
 def is_first_session(notion_key: str, sso_id: str, db: Session) -> bool:
-    """
-    Retourne True si l'élève n'a aucune progression enregistrée
-    pour les compétences de cette notion.
-    """
     if notion_key not in REFERENTIEL:
         raise ValueError(f"Notion inconnue : {notion_key}")
 
     codes = [c["code"] for c in REFERENTIEL[notion_key]["competences"]]
 
-    existing = db.exec(
+    attempted = db.exec(
         select(models.Progression).where(
             models.Progression.sso_id == sso_id,
             models.Progression.competence_id.in_(codes),
+            models.Progression.attempts_count > 0,
         )
     ).first()
 
-    return existing is None
+    return attempted is None
 
 
 # ─── INIT PROGRESSION ─────────────────────────────────────────────────────────

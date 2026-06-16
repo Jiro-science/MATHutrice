@@ -807,6 +807,16 @@
             }
         }
 
+        @keyframes fireWiggle {
+            0% {
+                transform: rotate(-8deg) scale(1.1);
+            }
+
+            100% {
+                transform: rotate(8deg) scale(1.2);
+            }
+        }
+
         @keyframes spin {
             to {
                 transform: rotate(360deg);
@@ -832,6 +842,8 @@
 
 <body>
 
+
+    <div class="streak-popup" id="streakPopup">🔥 <span id="streakPopupText"></span></div>
     <!-- Toast compétence maîtrisée -->
     <div class="mastery-toast" id="masteryToast">
         <span class="mastery-star">⭐</span>
@@ -848,6 +860,10 @@
             </a>
             <div class="header-title" id="headerTitle">Chargement…</div>
             <div class="header-badge" id="headerBadge">–</div>
+            <div class="streak-row" id="streakRow" style="display:none">
+                <span class="streak-fire">🔥</span>
+                <span class="streak-count" id="streakCount">0</span>
+            </div>
             <div class="attempts-row" id="attemptsRow" style="display:none">
                 <span class="attempts-label">Essais</span>
                 <div class="attempt-dot active" id="dot1"></div>
@@ -913,6 +929,49 @@
         let sbsResults = [];
         let sbsAttempt = 1;
         let sbsScoreSubmitted = false;
+
+        // ─── STREAK ───────────────────────────────────────────────────────
+        let streakCount = 0;
+
+        function incrementStreak() {
+            if (sessionType === 'positionnement') return;
+            streakCount++;
+            updateStreakUI();
+            if (streakCount === 3 || streakCount === 5 || streakCount % 10 === 0) {
+                showStreakPopup(streakCount);
+            }
+        }
+
+        function resetStreak() {
+            if (streakCount > 0) {
+                streakCount = 0;
+                updateStreakUI();
+            }
+        }
+
+        function updateStreakUI() {
+            const row = document.getElementById('streakRow');
+            const count = document.getElementById('streakCount');
+            if (!row || !count) return;
+            count.textContent = streakCount;
+            row.style.display = sessionType === 'positionnement' ? 'none' : 'flex';
+            row.classList.toggle('hot', streakCount >= 3);
+        }
+
+        function showStreakPopup(n) {
+            const popup = document.getElementById('streakPopup');
+            const text = document.getElementById('streakPopupText');
+            if (!popup || !text) return;
+            const messages = {
+                3: '3 de suite !',
+                5: '5 en série ! En feu !',
+                10: '10 consécutifs ! Incroyable !',
+                20: '20 streak ! Légendaire !',
+            };
+            text.textContent = messages[n] || n + ' en série !';
+            popup.classList.add('show');
+            setTimeout(() => popup.classList.remove('show'), 2500);
+        }
 
         // ─── PERSISTENCE ──────────────────────────────────────────────────
         function saveSession() {
@@ -1106,7 +1165,11 @@
             } catch (e) { document.getElementById('loadingTitle').textContent = 'Erreur : ' + e.message; }
         }
 
-        function resetAttempts() { currentAttempt = 1; scoreSubmittedForCurrent = false; wrongOptionsQCM = new Set(); updateAttemptDots(); }
+        function resetAttempts() {
+            currentAttempt = 1; scoreSubmittedForCurrent = false; wrongOptionsQCM = new Set();
+            updateAttemptDots();
+            updateStreakUI();
+        }
 
         function showQuestion() {
             if (currentIndex >= questions.length) { if (sessionType === 'positionnement') { showResults(); return; } loadNextQuestion(); return; }
