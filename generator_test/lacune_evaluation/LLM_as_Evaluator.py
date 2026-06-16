@@ -19,12 +19,14 @@ def _build_flat_competences(referentiel):
     flat = []
     for notion_data in referentiel.values():
         for comp in notion_data["competences"]:
-            flat.append({
-                "code": comp["code"],
-                "nom": comp["nom"],
-                "niveau": comp["niveau"],
-                "notion": notion_data["notion_nom"],
-            })
+            flat.append(
+                {
+                    "code": comp["code"],
+                    "nom": comp["nom"],
+                    "niveau": comp["niveau"],
+                    "notion": notion_data["notion_nom"],
+                }
+            )
     return flat
 
 
@@ -55,7 +57,7 @@ FORMAT_DETECTION = """{
 
 def prompt_detection(notion, enonce, reponse_correcte, toutes_competences):
     competences_str = "\n".join(
-        f'  - [{c["code"]}] ({c["notion"]}) {c["nom"]} (niveau : {c["niveau"]})'
+        f"  - [{c['code']}] ({c['notion']}) {c['nom']} (niveau : {c['niveau']})"
         for c in toutes_competences
     )
     return f"""
@@ -137,11 +139,10 @@ def prompt_analyse(
     dernieres_erreurs,
 ):
     competences_evaluees_str = "\n".join(
-        f'  - [{c["code"]}] ({c["notion"]}) {c["nom"]}'
-        for c in competences_evaluees
+        f"  - [{c['code']}] ({c['notion']}) {c['nom']}" for c in competences_evaluees
     )
     toutes_competences_str = "\n".join(
-        f'  - [{c["code"]}] ({c["notion"]}) {c["nom"]} (niveau : {c["niveau"]})'
+        f"  - [{c['code']}] ({c['notion']}) {c['nom']} (niveau : {c['niveau']})"
         for c in toutes_competences
     )
     return f"""
@@ -197,8 +198,15 @@ def analyser_lacunes(
     """Passe 2 : identifie les compétences non acquises, y compris hors passe 1."""
     toutes_competences = _build_flat_competences(REFERENTIEL)
     prompt = prompt_analyse(
-        notion, niveau, enonce, reponse_correcte, reponse_etudiant,
-        competences_evaluees, toutes_competences, nb_tentatives, dernieres_erreurs,
+        notion,
+        niveau,
+        enonce,
+        reponse_correcte,
+        reponse_etudiant,
+        competences_evaluees,
+        toutes_competences,
+        nb_tentatives,
+        dernieres_erreurs,
     )
     response = client.chat.complete(
         model=MODEL, messages=[{"role": "user", "content": prompt}]
@@ -217,8 +225,7 @@ def _build_competences_dict(competences_evaluees, diagnostic):
         for c in diagnostic.get("diagnostic", {}).get("competences_lacunaires", [])
     }
     competences_dict = {
-        c["code"]: c["code"] not in lacunaires
-        for c in competences_evaluees
+        c["code"]: c["code"] not in lacunaires for c in competences_evaluees
     }
     for c in diagnostic.get("diagnostic", {}).get("competences_lacunaires", []):
         competences_dict[c["code"]] = False
@@ -226,6 +233,7 @@ def _build_competences_dict(competences_evaluees, diagnostic):
 
 
 # ─── FONCTION ALLÉGÉE (passe 2 seulement, compétence déjà connue) ────────────
+
 
 def diagnostiquer_depuis_competence(
     notion,
@@ -245,8 +253,14 @@ def diagnostiquer_depuis_competence(
     competence_avec_notion = {**competence_cible, "notion": notion}
     competences_evaluees = [competence_avec_notion]
     diagnostic = analyser_lacunes(
-        notion, niveau, enonce, reponse_correcte, reponse_etudiant,
-        competences_evaluees, nb_tentatives, dernieres_erreurs,
+        notion,
+        niveau,
+        enonce,
+        reponse_correcte,
+        reponse_etudiant,
+        competences_evaluees,
+        nb_tentatives,
+        dernieres_erreurs,
     )
     competences_dict = _build_competences_dict(competences_evaluees, diagnostic)
     return {
@@ -257,6 +271,7 @@ def diagnostiquer_depuis_competence(
 
 
 # ─── FONCTION PRINCIPALE ─────────────────────────────────────────────────────
+
 
 def diagnostiquer(
     notion,
@@ -280,8 +295,14 @@ def diagnostiquer(
     competences_evaluees = detection.get("competences_evaluees", [])
 
     diagnostic = analyser_lacunes(
-        notion, niveau, enonce, reponse_correcte, reponse_etudiant,
-        competences_evaluees, nb_tentatives, dernieres_erreurs,
+        notion,
+        niveau,
+        enonce,
+        reponse_correcte,
+        reponse_etudiant,
+        competences_evaluees,
+        nb_tentatives,
+        dernieres_erreurs,
     )
 
     competences_dict = _build_competences_dict(competences_evaluees, diagnostic)
@@ -295,10 +316,11 @@ def diagnostiquer(
 
 # ─── AFFICHAGE ────────────────────────────────────────────────────────────────
 
+
 def afficher_resultat(resultat):
     diag = resultat["diagnostic"].get("diagnostic", {})
     competences_lacunaires = diag.get("competences_lacunaires", [])
-    SEP  = "=" * 60
+    SEP = "=" * 60
     SEP2 = "-" * 60
 
     print(f"\n{SEP}")
@@ -307,7 +329,7 @@ def afficher_resultat(resultat):
     for c in resultat["competences_evaluees"]:
         print(f"  [{c['code']}] {c['nom']}")
         print(f"         Notion  : {c.get('notion', '-')}")
-        if c.get('justification'):
+        if c.get("justification"):
             print(f"         Raison  : {c['justification']}")
         print()
 
@@ -321,7 +343,9 @@ def afficher_resultat(resultat):
     print(f"  Étape d'échec      : {diag.get('etape_echec', '-')}")
     print(f"  Erreur récurrente  : {'Oui' if diag.get('erreur_recurrente') else 'Non'}")
     print(f"  Lacune identifiée  : {diag.get('lacune_precise', '-')}")
-    print(f"  Confiance          : {resultat['diagnostic'].get('confiance_diagnostic', '-')}")
+    print(
+        f"  Confiance          : {resultat['diagnostic'].get('confiance_diagnostic', '-')}"
+    )
 
     print(f"\n{SEP2}")
     print("  COMPÉTENCES LACUNAIRES")
@@ -329,7 +353,11 @@ def afficher_resultat(resultat):
     if not competences_lacunaires:
         print("  Aucune lacune détectée.")
     for c in competences_lacunaires:
-        label = "★ hors exercice" if c.get("source") == "detectee_passe2" else "  dans l'exercice"
+        label = (
+            "★ hors exercice"
+            if c.get("source") == "detectee_passe2"
+            else "  dans l'exercice"
+        )
         print(f"  [{c['code']}] {c['nom']}  —  {label}")
         print(f"         Notion      : {c['notion']}")
         print(f"         Explication : {c['explication']}")

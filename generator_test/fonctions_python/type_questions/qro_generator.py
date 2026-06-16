@@ -12,7 +12,7 @@ La correction se fait par comparaison souple (normalisation de la chaîne)
 + un second appel Mistral en mode "correcteur" pour les cas ambigus.
 """
 
-from base_generator import (
+from fonctions_python.base_generator import (
     call_mistral,
     generate_test,
     display_score,
@@ -33,6 +33,7 @@ QRO_FORMAT = """
   "correct_answer": "La réponse attendue (complète et précise)"
 }
 """
+
 
 def build_prompt(notion_nom: str, competence: dict) -> str:
     return f"""
@@ -196,13 +197,11 @@ def evaluate_answer(q: dict, user_answer: str) -> tuple[bool, str]:
 #     """Génère un test de n questions QRO."""
 #     return generate_test(notion, niveau, n, generate_qro_question)
 
+
 def generate_qro_question(notion_nom: str, competence: dict) -> dict | None:
     """Génère une question QRO validée à partir d'une compétence déjà choisie."""
 
-    prompt = build_prompt(
-        notion_nom=notion_nom,
-        competence=competence
-    )
+    prompt = build_prompt(notion_nom=notion_nom, competence=competence)
 
     return call_mistral(prompt, notion_nom, parse_and_validate)
 
@@ -220,6 +219,8 @@ def generate_qro_test(notion_nom: str, competences: list[dict]) -> list[dict]:
             questions.append(question)
 
     return questions
+
+
 # INTERFACE CONSOLE
 
 
