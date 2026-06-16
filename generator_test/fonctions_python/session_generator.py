@@ -251,26 +251,57 @@ def persist_score_update(
 
 def generate_positioning_session(notion_key: str, sso_id: str, db: Session) -> dict:
     """
-    Génère le test de positionnement (première session sur une notion).
-    5 QCM + 3 QRO + 2 SBS. Niveau basique par défaut.
+    Génère le test de positionnement sur les 3 niveaux.
+    Distribution : 1 basique (3 questions) + 1 solide (6 questions) + 1 expert (2 questions)
+    Adapté au nombre de compétences par niveau dans le REFERENTIEL.
     """
     notion_data = build_notion_data_with_scores(notion_key, sso_id, db)
     notion_nom = notion_data["notion_nom"]
 
-    questions = generate_mixed_test(
+    q_basique = generate_mixed_test(
         notion=notion_key,
         niveau="basique",
-        n_qcm=5,
-        n_qro=3,
-        n_steps=2,
+        n_qcm=1,
+        n_qro=1,
+        n_steps=1,
         notion_data_override=notion_data,
     )
+    q_solide = generate_mixed_test(
+        notion=notion_key,
+        niveau="solide",
+        n_qcm=3,
+        n_qro=2,
+        n_steps=1,
+        notion_data_override=notion_data,
+    )
+    q_expert = generate_mixed_test(
+        notion=notion_key,
+        niveau="expert",
+        n_qcm=1,
+        n_qro=1,
+        n_steps=0,
+        notion_data_override=notion_data,
+    )
+
+    questions = q_basique + q_solide + q_expert
+
+    # Dédupliquer par compétence
+    seen = set()
+    unique_questions = []
+    for q in questions:
+        comp_code = (q.get("competence_cible") or {}).get("code", "")
+        key = comp_code + q.get("type", "")
+        if key not in seen:
+            seen.add(key)
+            unique_questions.append(q)
+    questions = unique_questions
+    random.shuffle(questions)
 
     return {
         "session_type": "positionnement",
         "notion_nom": notion_nom,
         "notion_key": notion_key,
-        "niveau_eleve": "basique",
+        "niveau_eleve": "mixte",
         "questions": questions,
     }
 

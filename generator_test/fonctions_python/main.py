@@ -921,63 +921,63 @@ def generate_mixed_test(
     n_qcm: int = 0,
     n_qro: int = 0,
     n_steps: int = 0,
-    notion_data_override: dict = None,  # ← ajouter
+    notion_data_override: dict = None,
 ) -> list[dict]:
 
     notion_data = notion_data_override or REFERENTIEL[notion]
     notion_nom = notion_data["notion_nom"]
     test = []
+    used_codes = set()  # ← garder trace des compétences déjà utilisées
+
+    def choisir_sans_repetition(type_ex):
+        """Choisit une compétence pas encore utilisée si possible."""
+        # Filtrer temporairement les compétences déjà vues
+        notion_data_filtered = {
+            **notion_data,
+            "competences": [
+                c for c in notion_data["competences"] if c["code"] not in used_codes
+            ]
+            or notion_data["competences"],  # fallback si toutes utilisées
+        }
+        comp = choisir_competence(notion_data_filtered, type_ex, niveau)
+        if comp and isinstance(comp, dict):
+            used_codes.add(comp["code"])
+        elif comp and isinstance(comp, list):
+            for c in comp:
+                used_codes.add(c["code"])
+        return comp
 
     if n_qcm > 0:
-        competences_qcm = [
-            choisir_competence(notion_data, "qcm", niveau) for _ in range(n_qcm)
-        ]
-
+        competences_qcm = [choisir_sans_repetition("qcm") for _ in range(n_qcm)]
         competences_qcm = [c for c in competences_qcm if c is not None]
-
         qcms = generate_qcm_test(notion_nom, competences_qcm)
-
         for q in qcms:
             q["type"] = "qcm"
             q["notion_nom"] = notion_nom
             q["niveau"] = niveau
-
         test.extend(qcms)
 
     if n_qro > 0:
-        competences_qro = [
-            choisir_competence(notion_data, "qro", niveau) for _ in range(n_qro)
-        ]
-
+        competences_qro = [choisir_sans_repetition("qro") for _ in range(n_qro)]
         competences_qro = [c for c in competences_qro if c is not None]
-
         qros = generate_qro_test(notion_nom, competences_qro)
-
         for q in qros:
             q["type"] = "qro"
             q["notion_nom"] = notion_nom
             q["niveau"] = niveau
-
         test.extend(qros)
 
     if n_steps > 0:
         competences_groupes_sbs = []
-
         for _ in range(n_steps):
-            competences = choisir_competence(
-                notion=notion_data, type_exercice="sbs", niveau_eleve=niveau
-            )
-
+            competences = choisir_sans_repetition("sbs")
             if competences:
                 competences_groupes_sbs.append(competences)
-
         steps = generate_steps_test(notion_nom, competences_groupes_sbs)
-
         for q in steps:
             q["type"] = "sbs"
             q["notion_nom"] = notion_nom
             q["niveau"] = niveau
-
         test.extend(steps)
 
     return test

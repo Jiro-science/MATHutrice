@@ -554,10 +554,14 @@
     </div>
 
     <!-- Bouton S'entraîner principal -->
-    <div class="train-container">
+    <div class="train-container" style="gap:14px;display:flex;flex-wrap:wrap;justify-content:center;">
       <button class="train-btn" id="trainBtn" onclick="startTraining()">
         <div class="btn-spinner"></div>
         <span class="btn-label">🎯 M'entraîner</span>
+      </button>
+      <button class="train-btn" id="evalBtn" onclick="startEval()"
+        style="background:linear-gradient(135deg,#1a7a4a,#27ae60);">
+        <span class="btn-label">📝 Me faire évaluer</span>
       </button>
     </div>
 
@@ -706,6 +710,11 @@
     async function startTraining() {
       const notionId = new URLSearchParams(location.search).get('id');
       window.location.href = `/session?notion_key=${encodeURIComponent(notionId)}&module_id=${encodeURIComponent(notionId)}`;
+    }
+
+    function startEval() {
+      const notionId = new URLSearchParams(location.search).get('id');
+      window.location.href = `/session?notion_key=${encodeURIComponent(notionId)}&module_id=${encodeURIComponent(notionId)}&eval=1`;
     }
 
     function showToast(msg, isError = false) {
