@@ -530,7 +530,9 @@
         </svg>
         Retour aux modules
       </a>
-      {% set notion_id, title, description = notion %}
+      {% set notion_id = module_id %}
+      {% set title = notion.title %}
+      {% set description = notion.description %}
       <h1 class="module-title" id="moduleTitle">{{ title }}</h1>
       <div class="progress-header">
         <div class="progress-info">
@@ -594,90 +596,179 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    const urlParams = new URLSearchParams(location.search);
-    const MODULE_ID = urlParams.get('id') || 'trigonometrie';
-    const NOTION_KEY = MODULE_ID;
+    const MODULE_ID = "{{ module_id }}";
+    const NOTION_KEY = "{{ notion_key }}";
 
-    // ── DONNÉES SIMULÉES sous-thèmes ──
-    const progressData = [
-      { name: 'Cercle trigonométrique', code: 'tr04', pct: 80 },
-      { name: 'sin, cos, tan', code: 'tr07', pct: 65 },
-      { name: 'Identités remarquables', code: 'tr08', pct: 40 },
-      { name: 'Angles associés', code: 'tr10', pct: 25 },
-      { name: 'Équations trig.', code: 'tr16', pct: 10 },
-    ];
+    let progressData = [];
+    let historyData = [];
 
-    const historyData = [
-      { type: 'Test', date: "Aujourd'hui, 14:32", score: 4, total: 5, notion: 'Cercle trigo.' },
-      { type: 'Test', date: 'Hier, 20:15', score: 3, total: 5, notion: 'sin / cos / tan' },
-      { type: 'Test', date: 'Hier, 10:04', score: 17, total: 20, notion: 'Formules clés' },
-      { type: 'Test', date: '05/04, 18:30', score: 2, total: 5, notion: 'Identités' },
-      { type: 'Test', date: '03/04, 09:12', score: 5, total: 5, notion: 'Cercle trigo.' },
-    ];
+    // ── CHARGEMENT DONNÉES RÉELLES MODULE ─────────────────────────────
+    async function loadModuleData() {
+      await loadScores();
+      await loadHistory();
+      await renderProgressCards();
+    }
 
-    // ── PROGRESSION GLOBALE ──
-    const globalPct = Math.round(progressData.reduce((a, b) => a + b.pct, 0) / progressData.length);
-    setTimeout(() => {
-      document.getElementById('mainProgressBar').style.width = globalPct + '%';
-      document.getElementById('mainProgressPct').textContent = globalPct + '%';
-      document.getElementById('progressText').textContent = historyData.length + ' / 10 activités';
-    }, 300);
+    async function loadScores() {
+      try {
+        const res = await fetch(`/session/scores?notion_key=${encodeURIComponent(NOTION_KEY)}`);
+        const data = await res.json();
 
-    // ── HISTORIQUE ──
-    const histContainer = document.getElementById('historyGrid');
-    historyData.forEach(item => {
-      const ratio = item.score / item.total;
-      const cls = ratio >= 0.8 ? 'good' : ratio >= 0.5 ? 'medium' : 'bad';
-      const card = document.createElement('div');
-      card.className = 'history-card';
-      card.innerHTML = `
-        <div class="hist-top">
-          <span class="hist-name">${item.type} — ${item.notion}</span>
-          <span class="hist-score ${cls}">${item.score}/${item.total}</span>
-        </div>
-        <div class="hist-meta">${item.date}</div>
-        <div class="hist-mini-bar">
-          <div class="hist-mini-fill" style="width:${Math.round(ratio * 100)}%"></div>
-        </div>`;
-      histContainer.appendChild(card);
-    });
+        if (!data.ok) {
+          throw new Error(data.error || 'Erreur scores');
+        }
 
-    // ── PROGRESS CARDS (avec vérification positionnement) ──
+        progressData = (data.competences || []).map(c => ({
+          name: c.nom,
+          code: c.code,
+          niveau: c.niveau,
+          pct: c.score_pct ?? Math.round((c.score || 0) * 100),
+        }));
+
+        updateGlobalProgress(data.global_score_pct || 0, progressData.length);
+
+      } catch (e) {
+        progressData = [];
+        updateGlobalProgress(0, 0);
+
+        const container = document.getElementById('progressCards');
+        container.innerHTML = `
+          <div style="font-size:13px;color:var(--red-main);padding:12px;">
+            Impossible de charger les scores réels.
+          </div>
+        `;
+      }
+    }
+
+    async function loadHistory() {
+      const histContainer = document.getElementById('historyGrid');
+
+      try {
+        const res = await fetch(`/session/history?notion_key=${encodeURIComponent(NOTION_KEY)}`);
+        const data = await res.json();
+
+        if (!data.ok) {
+          throw new Error(data.error || 'Erreur historique');
+        }
+
+        historyData = data.history || [];
+        renderHistory();
+
+      } catch (e) {
+        histContainer.innerHTML = `
+          <div style="font-size:13px;color:var(--text-light);padding:12px;">
+            Historique indisponible pour le moment.
+          </div>
+        `;
+      }
+    }
+
+    // ── PROGRESSION GLOBALE ───────────────────────────────────────────
+    function updateGlobalProgress(globalPct, competenceCount) {
+      const pct = Math.max(0, Math.min(100, Math.round(globalPct || 0)));
+
+      setTimeout(() => {
+        document.getElementById('mainProgressBar').style.width = pct + '%';
+        document.getElementById('mainProgressPct').textContent = pct + '%';
+        document.getElementById('progressText').textContent =
+          competenceCount > 0
+            ? `${competenceCount} compétences suivies`
+            : 'Aucune compétence suivie';
+      }, 300);
+    }
+
+    // ── HISTORIQUE ───────────────────────────────────────────────────
+    function renderHistory() {
+      const histContainer = document.getElementById('historyGrid');
+      histContainer.innerHTML = '';
+
+      if (!historyData.length) {
+        histContainer.innerHTML = `
+          <div style="font-size:13px;color:var(--text-light);padding:12px;">
+            Aucune activité récente pour ce module.
+          </div>
+        `;
+        return;
+      }
+
+      historyData.forEach(item => {
+        const pct = item.score_pct ?? Math.round((item.score / item.total) * 100);
+        const cls = pct >= 80 ? 'good' : pct >= 50 ? 'medium' : 'bad';
+
+        const card = document.createElement('div');
+        card.className = 'history-card';
+        card.innerHTML = `
+          <div class="hist-top">
+            <span class="hist-name">${item.type} — ${item.notion}</span>
+            <span class="hist-score ${cls}">${pct}%</span>
+          </div>
+          <div class="hist-meta">${item.date}</div>
+          <div class="hist-mini-bar">
+            <div class="hist-mini-fill" style="width:${pct}%"></div>
+          </div>
+        `;
+
+        histContainer.appendChild(card);
+      });
+    }
+
+    // ── PROGRESS CARDS ───────────────────────────────────────────────
     async function renderProgressCards() {
       const container = document.getElementById('progressCards');
 
       let positioningDone = false;
+
       try {
         const res = await fetch(`/session/check?notion_key=${encodeURIComponent(NOTION_KEY)}`);
         const data = await res.json();
-        positioningDone = !data.first_session;
-      } catch (e) { }
+
+        positioningDone = data.ok && !data.first_session;
+      } catch (e) {
+        positioningDone = false;
+      }
 
       container.innerHTML = '';
 
+      if (!progressData.length) {
+        container.innerHTML = `
+          <div style="font-size:13px;color:var(--text-light);padding:12px;">
+            Aucune compétence trouvée pour ce module.
+          </div>
+        `;
+        return;
+      }
+
       progressData.forEach(item => {
+        const mastered = item.pct >= 90;
         const card = document.createElement('div');
-        const isMastered = item.pct >= 90;
 
         if (positioningDone) {
-          // Carte cliquable
           card.className = 'prog-card clickable';
           card.onclick = () => goToTargeted(item.code, item.name);
+
           card.innerHTML = `
             <div class="prog-card-top">
               <span class="prog-card-name">${item.name}</span>
-              ${isMastered ? '<span class="mastered-badge">⭐ Maîtrisé</span>' : `<span class="prog-card-pct">${item.pct}%</span>`}
+              ${
+                mastered
+                  ? '<span class="mastered-badge">⭐ Maîtrisé</span>'
+                  : `<span class="prog-card-pct">${item.pct}%</span>`
+              }
             </div>
             <div class="prog-card-bar">
               <div class="prog-card-fill" style="width:0%" data-pct="${item.pct}"></div>
             </div>
             <div class="prog-card-footer cta">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="8" cy="8" r="6"/><path d="M6 8h4M8 6l2 2-2 2"/></svg>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5">
+                <circle cx="8" cy="8" r="6"/>
+                <path d="M6 8h4M8 6l2 2-2 2"/>
+              </svg>
               S'entraîner sur ce thème
-            </div>`;
+            </div>
+          `;
         } else {
-          // Carte verrouillée
           card.className = 'prog-card locked';
+
           card.innerHTML = `
             <div class="prog-card-top">
               <span class="prog-card-name">${item.name}</span>
@@ -688,13 +779,13 @@
             </div>
             <div class="prog-card-footer locked-msg">
               🔒 Fais d'abord le test de positionnement
-            </div>`;
+            </div>
+          `;
         }
 
         container.appendChild(card);
       });
 
-      // Animer les barres
       setTimeout(() => {
         container.querySelectorAll('.prog-card-fill').forEach(el => {
           el.style.width = el.dataset.pct + '%';
@@ -703,29 +794,32 @@
     }
 
     function goToTargeted(competenceCode, competenceName) {
-      window.location.href = `/session?notion_key=${encodeURIComponent(NOTION_KEY)}&module_id=${encodeURIComponent(MODULE_ID)}&competence_code=${encodeURIComponent(competenceCode)}`;
+      window.location.href =
+        `/session?notion_key=${encodeURIComponent(NOTION_KEY)}&module_id=${encodeURIComponent(MODULE_ID)}&competence_code=${encodeURIComponent(competenceCode)}`;
     }
 
-    // ── BOUTON S'ENTRAÎNER PRINCIPAL ──
+    // ── BOUTON S'ENTRAÎNER PRINCIPAL ─────────────────────────────────
     async function startTraining() {
-      const notionId = new URLSearchParams(location.search).get('id');
-      window.location.href = `/session?notion_key=${encodeURIComponent(notionId)}&module_id=${encodeURIComponent(notionId)}`;
+      window.location.href =
+        `/session?notion_key=${encodeURIComponent(NOTION_KEY)}&module_id=${encodeURIComponent(MODULE_ID)}`;
     }
 
     function startEval() {
-      const notionId = new URLSearchParams(location.search).get('id');
-      window.location.href = `/session?notion_key=${encodeURIComponent(notionId)}&module_id=${encodeURIComponent(notionId)}&eval=1`;
+      window.location.href =
+        `/session?notion_key=${encodeURIComponent(NOTION_KEY)}&module_id=${encodeURIComponent(MODULE_ID)}&eval=1`;
     }
 
     function showToast(msg, isError = false) {
       const t = document.getElementById('toast');
       t.textContent = msg;
       t.className = 'toast show' + (isError ? ' error' : '');
-      setTimeout(() => { t.className = 'toast'; }, 3500);
+      setTimeout(() => {
+        t.className = 'toast';
+      }, 3500);
     }
 
     // Init
-    renderProgressCards();
+    loadModuleData();
   </script>
 </body>
 

@@ -1339,7 +1339,10 @@
         let streakCount = 0;
         let recoBannerVisible = false;
         let evalNQuestions = 0;
-        let trainingStarted = false; // flag local (sync avec DB)
+        let trainingStarted = false;
+
+        let sessionStartedAt = new Date().toISOString();
+        let historySaved = false;
 
         // ─── PERSISTENCE ──────────────────────────────────────────────────
         function saveSession() {
@@ -1381,12 +1384,12 @@
         }
 
         // ─── RECO BANNER ──────────────────────────────────────────────────
-        function showRecoBanner(notionKey, notionNom) {
+        function showRecoBanner(notionId, notionNom) {
             if (recoBannerVisible) return;
             recoBannerVisible = true;
             document.getElementById('recoBannerTitle').textContent = 'Travailler ce module en priorité';
             document.getElementById('recoBannerSub').textContent = notionNom + ' — lacunes détectées plusieurs fois';
-            document.getElementById('recoBannerBtn').onclick = () => { window.location.href = '/module?id=' + encodeURIComponent(notionKey); };
+            document.getElementById('recoBannerBtn').onclick = () => {window.location.href = '/module?id=' + encodeURIComponent(notionId);};
             document.getElementById('recoBanner').classList.add('show');
             setTimeout(() => hideRecoBanner(), 8000);
         }
@@ -1536,6 +1539,10 @@
 
         async function launchEval() {
             if (!evalNQuestions) return;
+
+            sessionStartedAt = new Date().toISOString();
+            historySaved = false;
+
             showState('stateLoading');
             document.getElementById('loadingTitle').textContent = 'Generation du test…';
             document.getElementById('loadingSub').textContent = evalNQuestions + ' questions en cours de preparation';
@@ -1709,7 +1716,7 @@
                 const comp = q.competence_cible || (q.competences_cibles && q.competences_cibles[0]) || {};
                 const res = await fetch('/session/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q.question || '', correct_answer: q.correct_answer || '', user_answer: userAnswer, attempt, competence: comp, notion_nom: q.notion_nom || notionNom, notion_key: NOTION_KEY, question_type: qType }) });
                 const data = await res.json();
-                if (data.cross_module_reco && data.cross_module_reco.count >= 2) showRecoBanner(data.cross_module_reco.notion_key, data.cross_module_reco.notion_nom);
+                if (data.cross_module_reco && data.cross_module_reco.count >= 2) showRecoBanner(data.cross_module_reco.notion_id, data.cross_module_reco.notion_nom);
                 return data.feedback || '';
             } catch (e) { return ''; }
         }
@@ -1748,6 +1755,32 @@
             if (Object.keys(clean).length === 0) return null;
             try { const res = await fetch('/session/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_key: NOTION_KEY, competences_dict: clean, question_type: qType, question_niveau: qNiveau || 'basique' }) }); const d = await res.json(); return d.new_scores || null; } catch (e) { return null; }
         }
+
+
+        async function saveSessionHistory() {
+            if (historySaved) return;
+            if (!NOTION_KEY || scoreMax === 0) return;
+
+            historySaved = true;
+
+            try {
+                await fetch('/session/history', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        notion_key: NOTION_KEY,
+                        session_type: sessionType,
+                        score_total: scoreTotal,
+                        score_max: scoreMax,
+                        type_stats: typeStats,
+                        started_at: sessionStartedAt
+                    })
+                });
+            } catch (e) {
+                console.warn('Historique non enregistré', e);
+            }
+        }
+
 
         // ─── NAVIGATION ───────────────────────────────────────────────────
         async function advance() {
@@ -1789,6 +1822,7 @@
         // ─── RÉSULTATS ────────────────────────────────────────────────────
         async function showResults() {
             const lastType = sessionType;
+            await saveSessionHistory();
 
             // Positionnement → recap d'abord
             if (lastType === 'positionnement') { await showRecap(); return; }
@@ -1830,6 +1864,9 @@
         function showEvalSetup() { showState('stateEvalSetup'); evalNQuestions = 0; document.querySelectorAll('.eval-option').forEach(o => o.classList.remove('selected')); document.getElementById('startEvalBtn').disabled = true; }
 
         async function startTraining() {
+            sessionStartedAt = new Date().toISOString();
+            historySaved = false;
+
             // Marquer training_started en DB
             try { await fetch('/session/training_started', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_key: NOTION_KEY }) }); } catch (e) { }
             trainingStarted = true;
@@ -1842,6 +1879,9 @@
         }
 
         async function continueTraining() {
+            sessionStartedAt = new Date().toISOString();
+            historySaved = false;
+
             clearSession(); questions = []; currentIndex = 0; scoreTotal = 0; scoreMax = 0;
             typeStats.qcm = [0, 0]; typeStats.qro = [0, 0]; typeStats.sbs = [0, 0];
             showState('stateLoading');

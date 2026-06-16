@@ -12,8 +12,9 @@ Flow :
 import copy
 import random
 from decimal import Decimal
-from datetime import datetime
-
+from datetime import datetime, UTC
+import uuid
+from uuid import UUID
 from sqlmodel import Session, select
 
 import models
@@ -25,6 +26,41 @@ from main import (
     generate_mixed_test,
     generate_exercise_randomly,
 )
+
+
+
+
+def get_competence_map_by_codes(codes: list[str], db: Session) -> dict[str, models.Competence]:
+    """
+    Convertit les codes du REFERENTIEL vers les lignes Competence en BDD.
+
+    Exemple :
+    tr01 -> Competence(competence_id=UUID(...), referentiel_code="tr01")
+    """
+    if not codes:
+        return {}
+
+    rows = db.exec(
+        select(models.Competence).where(
+            models.Competence.referentiel_code.in_(codes)
+        )
+    ).all()
+
+    return {row.referentiel_code: row for row in rows}
+
+
+def get_notion_by_referentiel_key(referentiel_key: str, db: Session) -> models.Notion | None:
+    """
+    Récupère la notion BDD à partir de la clé du REFERENTIEL.
+    Exemple : trigonometrie -> notion_id UUID
+    """
+    return db.exec(
+        select(models.Notion).where(
+            models.Notion.referentiel_key == referentiel_key
+        )
+    ).first()
+
+
 
 
 # ─── NIVEAU AUTO ──────────────────────────────────────────────────────────────
@@ -60,15 +96,15 @@ def deduire_niveau_eleve(notion_data: dict) -> str:
 
 def build_notion_data_with_scores(
     notion_key: str,
-    sso_id: str,
+    sso_id: UUID,
     db: Session,
 ) -> dict:
     """
     Reconstruit le dict notion du REFERENTIEL en remplaçant les scores statiques
     par les vrais scores de l'élève issus de la table progression.
 
-    Si l'élève n'a pas encore de progression pour une compétence → score = 0.5
-    (ni acquis, ni lacune avérée).
+    Le REFERENTIEL travaille avec des codes métier : tr01, le01...
+    La BDD travaille avec des UUID : competence.competence_id.
     """
     if notion_key not in REFERENTIEL:
         raise ValueError(f"Notion inconnue : {notion_key}")
@@ -76,14 +112,31 @@ def build_notion_data_with_scores(
     notion_data = copy.deepcopy(REFERENTIEL[notion_key])
     codes = [c["code"] for c in notion_data["competences"]]
 
+    code_to_competence = get_competence_map_by_codes(codes, db)
+    competence_ids = [comp.competence_id for comp in code_to_competence.values()]
+
+    if not competence_ids:
+        for comp in notion_data["competences"]:
+            comp["score"] = 0.5
+        return notion_data
+
     rows = db.exec(
         select(models.Progression).where(
             models.Progression.sso_id == sso_id,
-            models.Progression.competence_id.in_(codes),
+            models.Progression.competence_id.in_(competence_ids),
         )
     ).all()
 
-    scores_db = {row.competence_id: float(row.score) for row in rows}
+    id_to_code = {
+        comp.competence_id: code
+        for code, comp in code_to_competence.items()
+    }
+
+    scores_db = {
+        id_to_code[row.competence_id]: float(row.score)
+        for row in rows
+        if row.competence_id in id_to_code
+    }
 
     for comp in notion_data["competences"]:
         comp["score"] = scores_db.get(comp["code"], 0.5)
@@ -94,16 +147,22 @@ def build_notion_data_with_scores(
 # ─── VÉRIFICATION PREMIÈRE FOIS ───────────────────────────────────────────────
 
 
-def is_first_session(notion_key: str, sso_id: str, db: Session) -> bool:
+def is_first_session(notion_key: str, sso_id: UUID, db: Session) -> bool:
     if notion_key not in REFERENTIEL:
         raise ValueError(f"Notion inconnue : {notion_key}")
 
     codes = [c["code"] for c in REFERENTIEL[notion_key]["competences"]]
 
+    code_to_competence = get_competence_map_by_codes(codes, db)
+    competence_ids = [comp.competence_id for comp in code_to_competence.values()]
+
+    if not competence_ids:
+        return True
+
     attempted = db.exec(
         select(models.Progression).where(
             models.Progression.sso_id == sso_id,
-            models.Progression.competence_id.in_(codes),
+            models.Progression.competence_id.in_(competence_ids),
             models.Progression.attempts_count > 0,
         )
     ).first()
@@ -114,21 +173,30 @@ def is_first_session(notion_key: str, sso_id: str, db: Session) -> bool:
 # ─── INIT PROGRESSION ─────────────────────────────────────────────────────────
 
 
-def init_progressions_for_user(sso_id: str, db: Session) -> None:
+def init_progressions_for_user(sso_id: UUID, db: Session) -> None:
     """
     Initialise les entrées de progression pour toutes les compétences
     du REFERENTIEL pour un nouvel élève.
-    Appelé à la première connexion.
-    Score initial = 0.5 (niveau intermédiaire inconnu).
-    """
-    now = datetime.utcnow()
 
+    Score initial = 0.50.
+    level initial = moyen.
+    updated_at = None car la compétence n'a pas encore été travaillée.
+    """
     for notion_key, notion_data in REFERENTIEL.items():
+        codes = [c["code"] for c in notion_data["competences"]]
+        code_to_competence = get_competence_map_by_codes(codes, db)
+
         for comp in notion_data["competences"]:
+            competence = code_to_competence.get(comp["code"])
+
+            if not competence:
+                print(f"[INIT PROGRESSION] Compétence introuvable en BDD : {comp['code']}")
+                continue
+
             existing = db.exec(
                 select(models.Progression).where(
                     models.Progression.sso_id == sso_id,
-                    models.Progression.competence_id == comp["code"],
+                    models.Progression.competence_id == competence.competence_id,
                 )
             ).first()
 
@@ -136,12 +204,12 @@ def init_progressions_for_user(sso_id: str, db: Session) -> None:
                 continue
 
             prog = models.Progression(
-                progression_id=f"{sso_id}_{comp['code']}",
+                progression_id=uuid.uuid4(),
                 score=Decimal("0.50"),
-                updated_at=now,
+                updated_at=None,
                 level="moyen",
                 attempts_count=0,
-                competence_id=comp["code"],
+                competence_id=competence.competence_id,
                 sso_id=sso_id,
             )
             db.add(prog)
@@ -153,44 +221,69 @@ def init_progressions_for_user(sso_id: str, db: Session) -> None:
 
 
 def persist_score_update(
-    sso_id: str,
+    sso_id: UUID,
     competences_dict: dict,  # { "tr01": True, "tr04": False }
-    question_type: str,  # "QCM" | "QRO" | "SBS"
-    question_niveau: str,  # "basique" | "solide" | "expert"
+    question_type: str,      # "QCM" | "QRO" | "SBS"
+    question_niveau: str,    # "basique" | "solide" | "expert"
     db: Session,
 ) -> dict:
     """
     Applique les règles de scoring de update_scores() et persiste
     les nouveaux scores en base de données.
+
+    Le REFERENTIEL utilise des codes comme "tr01".
+    La BDD utilise des UUID comme competence_id.
+    Donc on convertit toujours :
+    referentiel_code -> competence_id UUID.
     """
     from fonctions_python.base_generator import update_scores
 
-    # On construit un mini-REFERENTIEL local pour update_scores
-    # (on ne veut pas modifier le REFERENTIEL global)
     local_ref = copy.deepcopy(REFERENTIEL)
 
-    # Injecter les scores actuels de la DB dans le local_ref
+    # 1. Codes touchés par la question : ["tr01", "tr04", ...]
     codes = list(competences_dict.keys())
+
+    # 2. Convertir les codes du REFERENTIEL en vraies compétences BDD
+    code_to_competence = get_competence_map_by_codes(codes, db)
+
+    competence_ids = [
+        competence.competence_id
+        for competence in code_to_competence.values()
+    ]
+
+    # 3. Récupérer les progressions existantes avec les UUID
     rows = db.exec(
         select(models.Progression).where(
             models.Progression.sso_id == sso_id,
-            models.Progression.competence_id.in_(codes),
+            models.Progression.competence_id.in_(competence_ids),
         )
     ).all()
-    scores_db = {row.competence_id: float(row.score) for row in rows}
 
+    # 4. Convertir competence_id UUID -> code référentiel
+    id_to_code = {
+        competence.competence_id: code
+        for code, competence in code_to_competence.items()
+    }
+
+    scores_db = {
+        id_to_code[row.competence_id]: float(row.score)
+        for row in rows
+        if row.competence_id in id_to_code
+    }
+
+    # 5. Injecter les scores actuels dans le référentiel local
     for notion_data in local_ref.values():
         for comp in notion_data["competences"]:
             if comp["code"] in scores_db:
                 comp["score"] = scores_db[comp["code"]]
 
-    # Map niveau compétence → niveau question (pour update_scores)
-    # update_scores attend "facile" | "intermediaire" | "difficile"
+    # 6. Adapter le niveau pour update_scores()
     niveau_map = {
         "basique": "facile",
         "solide": "intermediaire",
         "expert": "difficile",
     }
+
     q_niveau = niveau_map.get(question_niveau, "intermediaire")
 
     question_format = {
@@ -198,14 +291,23 @@ def persist_score_update(
         "niveau": q_niveau,
     }
 
+    # 7. Calculer les nouveaux scores
     updated_ref, _, nouveaux_scores = update_scores(
-        local_ref, question_format, competences_dict
+        local_ref,
+        question_format,
+        competences_dict,
     )
 
-    # Clamp scores entre 0.0 et 1.0 et persister
-    now = datetime.utcnow()
+    # 8. Sauvegarder en BDD
+    now = datetime.now(UTC).replace(tzinfo=None)
 
     for code, new_score in nouveaux_scores.items():
+        competence = code_to_competence.get(code)
+
+        if not competence:
+            print(f"[SCORE UPDATE] Compétence introuvable en BDD : {code}")
+            continue
+
         clamped = max(0.0, min(1.0, new_score))
 
         if clamped < 0.4:
@@ -218,7 +320,7 @@ def persist_score_update(
         prog = db.exec(
             select(models.Progression).where(
                 models.Progression.sso_id == sso_id,
-                models.Progression.competence_id == code,
+                models.Progression.competence_id == competence.competence_id,
             )
         ).first()
 
@@ -229,27 +331,30 @@ def persist_score_update(
             prog.attempts_count += 1
             db.add(prog)
         else:
-            # Sécurité : créer si absent (ne devrait pas arriver après init)
+            # Sécurité : créer si absent
             prog = models.Progression(
-                progression_id=f"{sso_id}_{code}",
+                progression_id=uuid.uuid4(),
                 score=Decimal(str(round(clamped, 2))),
                 updated_at=now,
                 level=level,
                 attempts_count=1,
-                competence_id=code,
+                competence_id=competence.competence_id,
                 sso_id=sso_id,
             )
             db.add(prog)
 
     db.commit()
 
-    return {code: max(0.0, min(1.0, score)) for code, score in nouveaux_scores.items()}
+    return {
+        code: max(0.0, min(1.0, score))
+        for code, score in nouveaux_scores.items()
+    }
 
 
 # ─── GÉNÉRATION POSITIONNEMENT ────────────────────────────────────────────────
 
 
-def generate_positioning_session(notion_key: str, sso_id: str, db: Session) -> dict:
+def generate_positioning_session(notion_key: str, sso_id: UUID, db: Session) -> dict:
     """
     Génère le test de positionnement sur les 3 niveaux.
     Distribution : 1 basique (3 questions) + 1 solide (6 questions) + 1 expert (2 questions)
@@ -309,7 +414,7 @@ def generate_positioning_session(notion_key: str, sso_id: str, db: Session) -> d
 # ─── GÉNÉRATION QUESTION ENTRAÎNEMENT ─────────────────────────────────────────
 
 
-def generate_next_question(notion_key: str, sso_id: str, db: Session) -> dict:
+def generate_next_question(notion_key: str, sso_id: UUID, db: Session) -> dict:
     """
     Génère une seule question pour la phase d'entraînement.
     Le type (qcm/qro/sbs) est choisi aléatoirement.
