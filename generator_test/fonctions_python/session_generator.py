@@ -17,7 +17,10 @@ from datetime import datetime
 from sqlmodel import Session, select
 
 import models
-from fonctions_python.main import (
+import sys, os
+
+sys.path.insert(0, os.path.dirname(__file__))
+from main import (
     REFERENTIEL,
     generate_mixed_test,
     generate_exercise_randomly,

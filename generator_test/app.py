@@ -1215,14 +1215,14 @@ async def submit_answer_endpoint(
     try:
         from fonctions_python.session_generator import persist_score_update
 
-        persist_score_update(
+        result = persist_score_update(
             sso_id=sso_id,
             competences_dict=data.competences_dict,
             question_type=data.question_type,
             question_niveau=data.question_niveau,
             db=session,
         )
-        return {"ok": True}
+        return {"ok": True, "new_scores": result}
     except Exception as e:
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
@@ -1362,112 +1362,75 @@ class FeedbackRequest(BaseModel):
     question_type: str  # qcm | qro | sbs
 
 
+class FeedbackRequest(BaseModel):
+    question: str
+    correct_answer: str
+    user_answer: str
+    attempt: int
+    competence: dict
+    notion_nom: str
+    question_type: str
+
+
 @app.post("/session/feedback")
-async def get_feedback(data: dict):
-    # On récupère le nombre d'essais et la question
-    tentative = data.get("tentative", 1)
-    question = data.get("question")
-    reponse_eleve = data.get("reponse")
-
-    # Définition des instructions selon la tentative
-    instructions = {
-        1: "Donne un indice court, subtil et encourageant pour aider l'élève à démarrer sans donner la solution.",
-        2: "Explique la méthode ou le point théorique bloquant sans donner la réponse finale.",
-        3: "Donne une explication complète, la méthode pas à pas et la solution détaillée pour apprendre de l'erreur.",
-    }
-
-    instruction = instructions.get(min(tentative, 3), instructions[3])
-
-    # Appel à ton moteur de chat (en supposant que 'chat' est ta fonction LLM)
-    from fonctions_python.chatbot import chat
-
-    prompt = f"""
-    Tu es un tuteur pédagogue en mathématiques.
-    Question : {question.get("enonce")}
-    Réponse donnée par l'élève : {reponse_eleve}
-    
-    {instruction}
-    """
-
-    feedback = chat(prompt)  # Appelle Mistral via ta fonction existante
-
-    return {"feedback": feedback}
-
-
-# ------------------------------------------------------------------
-# SESSION — question ciblée sur une compétence spécifique
-# ------------------------------------------------------------------
-
-
-class NextTargetedRequest(BaseModel):
-    notion_key: str
-    competence_code: str
-
-
-@app.post("/session/next_targeted")
-async def next_targeted_endpoint(
+async def feedback_endpoint(
     request: Request,
-    data: NextTargetedRequest,
-    session: Session = Depends(get_session),
+    data: FeedbackRequest,
 ):
-    user = get_current_user(request)
-    if not user:
-        return JSONResponse(status_code=401, content={"detail": "Non connecté"})
-
-    sso_id = session.exec(
-        select(models.User.sso_id).where(models.User.email == user["email"])
-    ).first()
-    if not sso_id:
-        return JSONResponse(
-            status_code=404, content={"detail": "Utilisateur introuvable"}
-        )
+    user = get_current_user(request) or {"email": "test@epf.fr"}
 
     try:
-        from fonctions_python.session_generator import build_notion_data_with_scores
-        from fonctions_python.main import REFERENTIEL
-        import random
+        from lacune_evaluation.LLM_as_Evaluator import analyser_lacunes
+        from fonctions_python.base_generator import client, MODEL
 
-        if data.notion_key not in REFERENTIEL:
-            return JSONResponse(
-                status_code=400, content={"ok": False, "error": "Notion inconnue"}
-            )
+        instructions = {
+            1: "Donne un indice court et orientant (2 phrases max). Ne donne pas la méthode, juste une piste de réflexion.",
+            2: "Explique la méthode à suivre étape par étape sans donner le résultat. Rappelle la définition ou la règle clé. 3-4 phrases.",
+            3: "Donne une explication complète de la notion avec la formule ou la règle exacte à appliquer. C'est la dernière chance de l'élève — sois pédagogue et précis. 4-5 phrases.",
+        }
 
-        notion_data = build_notion_data_with_scores(data.notion_key, sso_id, session)
-        notion_nom = notion_data["notion_nom"]
+        instruction = instructions[min(data.attempt, 3)]
 
-        # Trouver la compétence ciblée
-        comp = next(
-            (
-                c
-                for c in notion_data["competences"]
-                if c["code"] == data.competence_code
-            ),
-            None,
+        prompt = (
+            "Tu es un tuteur de mathématiques pour des étudiants de première année.\n"
+            "Un étudiant a répondu incorrectement à une question. C'est sa tentative numéro "
+            + str(data.attempt)
+            + "/3.\n\n"
+            "Question : " + data.question + "\n"
+            "Réponse de l'étudiant : " + data.user_answer + "\n"
+            "Compétence ciblée : "
+            + data.competence.get("nom", "")
+            + " (niveau "
+            + data.competence.get("niveau", "")
+            + ")\n\n"
+            "Consigne pour ce feedback (tentative "
+            + str(data.attempt)
+            + "/3) :\n"
+            + instruction
+            + "\n\n"
+            "Règles absolues :\n"
+            "- Ne donne JAMAIS la bonne réponse\n"
+            "- Utilise le 'tu' et sois bienveillant\n"
+            "- Reste concis et précis\n"
+            "- Réponds uniquement avec le texte du feedback, sans JSON, sans balises\n"
         )
-        if not comp:
-            return JSONResponse(
-                status_code=400, content={"ok": False, "error": "Compétence inconnue"}
-            )
 
-        # Générer QCM ou QRO aléatoirement
-        qtype = random.choice(["qcm", "qro"])
+        response = client.chat.complete(
+            model=MODEL, messages=[{"role": "user", "content": prompt}]
+        )
+        feedback = response.choices[0].message.content.strip()
+        can_retry = data.attempt < 3
 
-        if qtype == "qcm":
-            from fonctions_python.type_questions.qcm_generator import generate_qcm
-
-            question = generate_qcm(notion_data, comp)
-            question["type"] = "qcm"
-        else:
-            from fonctions_python.type_questions.qro_generator import generate_qro
-
-            question = generate_qro(notion_data, comp)
-            question["type"] = "qro"
-
-        question["notion_nom"] = notion_nom
-
-        return {"ok": True, "questions": [question], "notion_nom": notion_nom}
+        return {
+            "ok": True,
+            "feedback": feedback,
+            "can_retry": can_retry,
+        }
 
     except Exception as e:
+        import traceback
+
+        print("FEEDBACK ERROR:", traceback.format_exc())
         return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
 
