@@ -16,7 +16,7 @@
       --purple-dark: #542365;
       --purple-mid: #6b2fa0;
       --purple-light: #8c52f0;
-      --pink-soft:rgb(74, 64, 69)0;
+      --pink-soft: #f8abe0;
       --pink-hot: #cb0a67;
       --white: #ffffff;
       --bg-page: #f7f4fb;
@@ -1021,56 +1021,21 @@
     function preprocess(text) {
       if (!text) return '';
       text = text.replace(/\\n/g, '\n').replace(/\r\n/g, '\n');
-      const latexCmd = /\\(frac|sqrt|sum|int|lim|sin|cos|tan|log|ln|alpha|beta|gamma|delta|theta|pi|sigma|omega|infty|cdot|times|div|pm|leq|geq|neq|approx|equiv|mathbb|vec|overline|begin|end)/;
-      text = text.replace(/\(\s*([^()]{2,60})\s*\)/g, (m, inner) => {
-        if (latexCmd.test(inner) || (/[_^{}]/.test(inner) && /\\/.test(inner))) return '$' + inner.trim() + '$';
-        return m;
-      });
+
+      // Recoller les $ isolés sur leur propre ligne avec le contenu qui suit/précède
+      // Cas: "$\n formule \n$"  -> "$formule$"
+      text = text.replace(/\$\s*\n+\s*/g, '$');
+      text = text.replace(/\s*\n+\s*\$/g, '$');
+
       text = text.replace(/^(#{1,6})\s*\*\*([^*\n]+)\**/gm, '$1 $2');
       text = text.replace(/([^\n])\$\$/g, '$1\n\n$$');
       text = text.replace(/\$\$([^\n])/g, '$$\n\n$1');
       text = text.replace(/\n{3,}/g, '\n\n');
+
       return text.trim();
     }
 
-    function md(text) {
-      if (!text) return '';
-      text = preprocess(text);
-
-      // 1. Extraire et protéger les formules LaTeX AVANT marked
-      const blocks = [];
-      
-      // Protéger les $$ ... $$ (display)
-      text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => {
-        blocks.push({ display: true, content: inner });
-        return `%%MATH_BLOCK_${blocks.length - 1}%%`;
-      });
-      
-      // Protéger les $ ... $ (inline)
-      text = text.replace(/\$([^\$\n]+?)\$/g, (_, inner) => {
-        blocks.push({ display: false, content: inner });
-        return `%%MATH_INLINE_${blocks.length - 1}%%`;
-      });
-
-      // 2. Passer à marked (le markdown est maintenant sans LaTeX)
-      let html = marked.parse(text);
-
-      // 3. Réinjecter les formules rendues par KaTeX
-      html = html.replace(/%%MATH_(BLOCK|INLINE)_(\d+)%%/g, (_, type, i) => {
-        const b = blocks[parseInt(i)];
-        try {
-          return katex.renderToString(b.content, {
-            displayMode: b.display,
-            throwOnError: false,
-          });
-        } catch(e) {
-          return b.display ? `$$${b.content}$$` : `$${b.content}$`;
-        }
-      });
-
-      return html;
-    }    
-
+    function md(text) { return marked.parse(preprocess(text)); }
     function escHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
 
     function showWelcome() {
@@ -1170,10 +1135,14 @@
           }
         }
 
-        bodyEl.innerHTML = md(full);
-        renderMath(bodyEl);
         curMsgs.push({ role: 'assistant', content: full });
         updateHist();
+
+        if (curId) {
+          await loadConv(curId);
+        } else {
+          bodyEl.innerHTML = md(full);
+        }
 
       } catch (err) {
         const t = document.getElementById('tid'); if (t) t.remove();
