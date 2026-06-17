@@ -36,6 +36,7 @@ from fonctions_python.base_generator import (
     logger,
 )
 from fonctions_python.type_questions.qro_generator import evaluate_answer
+from fonctions_python.rag_context import get_exercices_context_competence
 
 
 # ─── PROMPT ───────────────────────────────────────────────────────────────────
@@ -62,9 +63,19 @@ STEPS_FORMAT = """
 """
 
 
-def build_prompt(notion_nom: str, competences: list) -> str:
+def build_prompt(notion_nom: str, competences: list, rag_context: str = "") -> str:
+    rag_section = f"""
+Tu as accès aux exercices réels du cours de l'étudiant :
+
+{rag_context}
+Inspire-toi de ces exercices pour décomposer un problème en étapes,
+avec des valeurs DIFFÉRENTES. Ne recopie jamais un énoncé.
+---
+""" if rag_context else ""
+
     return f"""
 Tu es un tuteur de mathématiques pour des étudiants de première année d'université.
+{rag_section}
 Ta tâche est de générer UN exercice de mathématiques décomposé en étapes.
 
 Informations :
@@ -163,9 +174,18 @@ def parse_and_validate(raw: str) -> dict:
 #     """Génère n exercices step by step."""
 #     return generate_test(notion, niveau, n, generate_steps_question)
 def generate_steps_question(notion_nom: str, competences: list[dict]) -> dict | None:
-    """Génère un exercice step by step à partir de compétences déjà choisies."""
+    """Génère un exercice step by step enrichi par le contexte RAG."""
 
-    prompt = build_prompt(notion_nom=notion_nom, competences=competences)
+    # Contexte RAG basé sur la première compétence du groupe
+    rag_context = ""
+    if competences:
+        rag_context = get_exercices_context_competence(notion_nom, competences[0])
+
+    prompt = build_prompt(
+        notion_nom=notion_nom,
+        competences=competences,
+        rag_context=rag_context,
+    )
 
     return call_mistral(prompt, notion_nom, parse_and_validate)
 

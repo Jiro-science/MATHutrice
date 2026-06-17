@@ -211,3 +211,5 @@ __marimo__/
 *.lo1
 
 *.pdf
+
+generator_test/rag/output/

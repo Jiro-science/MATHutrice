@@ -23,6 +23,7 @@ from fonctions_python.base_generator import (
     client,
     MODEL,
 )
+from fonctions_python.rag_context import get_exercices_context_competence
 
 
 # GENERATE PROMPT  INSTRUCTIONS POUR MISTRAL
@@ -35,9 +36,19 @@ QRO_FORMAT = """
 """
 
 
-def build_prompt(notion_nom: str, competence: dict) -> str:
+def build_prompt(notion_nom: str, competence: dict, rag_context: str = "") -> str:
+    rag_section = f"""
+Tu as accès aux exercices réels du cours de l'étudiant :
+
+{rag_context}
+Inspire-toi de ces exercices pour une question à réponse courte du MÊME TYPE,
+avec des valeurs DIFFÉRENTES. Ne recopie jamais un énoncé.
+---
+""" if rag_context else ""
+
     return f"""
 Tu es un tuteur de mathématiques pour des étudiants de première année d'université.
+{rag_section}
 Ta tâche est de générer UNE question à réponse ouverte (QRO) de mathématiques.
 
 Informations :
@@ -199,9 +210,15 @@ def evaluate_answer(q: dict, user_answer: str) -> tuple[bool, str]:
 
 
 def generate_qro_question(notion_nom: str, competence: dict) -> dict | None:
-    """Génère une question QRO validée à partir d'une compétence déjà choisie."""
+    """Génère une question QRO enrichie par le contexte RAG (ChromaDB/pgvector)."""
 
-    prompt = build_prompt(notion_nom=notion_nom, competence=competence)
+    rag_context = get_exercices_context_competence(notion_nom, competence)
+
+    prompt = build_prompt(
+        notion_nom=notion_nom,
+        competence=competence,
+        rag_context=rag_context,
+    )
 
     return call_mistral(prompt, notion_nom, parse_and_validate)
 

@@ -21,6 +21,7 @@ from fonctions_python.base_generator import (
     logger,
 )
 from fonctions_python.verifier import apply_verification
+from fonctions_python.rag_context import get_exercices_context_competence
 
 
 # ─── PROMPT ───────────────────────────────────────────────────────────────────
@@ -34,9 +35,19 @@ QCM_FORMAT = """
 """
 
 
-def build_prompt(notion_nom: str, competence: dict) -> str:
+def build_prompt(notion_nom: str, competence: dict, rag_context: str = "") -> str:
+    rag_section = f"""
+Tu as accès aux exercices réels du cours de l'étudiant :
+
+{rag_context}
+Inspire-toi de ces exercices pour créer une question du MÊME TYPE,
+avec des valeurs DIFFÉRENTES. Ne recopie jamais un énoncé de référence.
+---
+""" if rag_context else ""
+
     return f"""
 Tu es un tuteur de mathématiques pour des étudiants de première année d'université.
+{rag_section}
 Ta tâche est de générer UNE question QCM de mathématiques.
 
 Informations :
@@ -125,9 +136,15 @@ def post_process(question: dict) -> dict:
 
 
 def generate_qcm_question(notion_nom: str, competence: dict) -> dict | None:
-    """Génère une question QCM validée à partir d'une compétence déjà choisie."""
+    """Génère une question QCM enrichie par le contexte RAG (ChromaDB/pgvector)."""
 
-    prompt = build_prompt(notion_nom=notion_nom, competence=competence)
+    rag_context = get_exercices_context_competence(notion_nom, competence)
+
+    prompt = build_prompt(
+        notion_nom=notion_nom,
+        competence=competence,
+        rag_context=rag_context,
+    )
 
     return call_mistral(prompt, notion_nom, parse_and_validate, post_process)
 

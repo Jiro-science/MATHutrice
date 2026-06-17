@@ -18,7 +18,7 @@ La correction utilise la même logique double-passe que le QRO
 (comparaison normalisée → LLM-as-judge si nécessaire).
 """
 
-from base_generator import (
+from fonctions_python.base_generator import (
     call_mistral,
     generate_test,
     display_score,
@@ -29,7 +29,8 @@ from base_generator import (
     client,
     MODEL,
 )
-from qro_generator import evaluate_answer  # même logique de correction
+from fonctions_python.type_questions.qro_generator import evaluate_answer
+from fonctions_python.rag_context import get_exercices_context
 
 
 # ─── PROMPT DE GÉNÉRATION ─────────────────────────────────────────────────────
@@ -51,9 +52,18 @@ TROUS_FORMAT = """
 """
 
 
-def build_prompt(notion: str, niveau: str) -> str:
+def build_prompt(notion: str, niveau: str, rag_context: str = "") -> str:
+    rag_section = f"""
+Tu as accès aux exercices réels du cours de l'étudiant :
+
+{rag_context}
+Inspire-toi de ces exercices pour créer des phrases à trous du MÊME TYPE.
+---
+""" if rag_context else ""
+
     return f"""
 Tu es un tuteur de mathématiques pour des étudiants de première année d'université.
+{rag_section}
 Ta tâche est de générer UN exercice de phrases à trous guidées en mathématiques.
 
 Informations :
@@ -143,8 +153,9 @@ def parse_and_validate(raw: str) -> dict:
 
 
 def generate_trous_question(notion: str, niveau: str) -> dict | None:
-    """Génère un exercice phrases à trous validé. Retourne None si échec."""
-    prompt = build_prompt(notion, niveau)
+    """Génère un exercice phrases à trous enrichi par le contexte RAG."""
+    rag_context = get_exercices_context(notion, niveau)
+    prompt = build_prompt(notion, niveau, rag_context)
     return call_mistral(prompt, notion, parse_and_validate)
 
 
