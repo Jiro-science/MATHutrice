@@ -26,7 +26,6 @@ from fonctions_python.chatbot import (
     reset_conversation,
 )
 
-# from test_format_generator.QCM import generate_qcm_statement
 from apscheduler.schedulers.background import BackgroundScheduler
 
 import models
@@ -692,12 +691,6 @@ async def qcm_page(request: Request):
 # ------------------------------------------------------------------
 
 
-class QCMRequest(BaseModel):
-    notion: str = "trigonométrie"
-    niveau: str = "intermédiaire"
-    n: int = 9
-
-
 class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
@@ -934,53 +927,6 @@ async def chat_complete_endpoint(data: ChatRequest):
                 "error": str(e),
             },
         )
-
-
-# ------------------------------------------------------------------
-# QCM generation
-# ------------------------------------------------------------------
-
-
-# @app.post("/generate_qcm")
-# async def generate_qcm_endpoint(data: QCMRequest):
-
-#     questions = []
-#     errors = []
-
-#     for i in range(data.n):
-#         try:
-#             qcm = generate_qcm_statement(
-#                 notion=data.notion,
-#                 niveau=data.niveau,
-#             )
-
-#             questions.append(qcm)
-
-#         except Exception as e:
-#             errors.append(
-#                 {
-#                     "index": i,
-#                     "error": str(e),
-#                 }
-#             )
-
-#     if not questions:
-#         return JSONResponse(
-#             status_code=500,
-#             content={
-#                 "ok": False,
-#                 "error": "Aucune question générée",
-#                 "details": errors,
-#             },
-#         )
-
-#     return {
-#         "ok": True,
-#         "notion": data.notion,
-#         "niveau": data.niveau,
-#         "questions": questions,
-#         "errors": errors,
-#     }
 
 
 # ------------------------------------------------------------------
@@ -1265,16 +1211,6 @@ async def evaluate_qro_endpoint(
 # SESSION — question ciblée sur une compétence spécifique# ------------------------------------------------------------------
 # SESSION — feedback progressif via LLM_as_Evaluator
 # ------------------------------------------------------------------
-
-
-class FeedbackRequest(BaseModel):
-    question: str
-    correct_answer: str
-    user_answer: str
-    attempt: int  # 1, 2 ou 3
-    competence: dict  # { code, nom, niveau }
-    notion_nom: str
-    question_type: str  # qcm | qro | sbs
 
 
 class FeedbackRequest(BaseModel):
@@ -1654,82 +1590,6 @@ async def evaluation_endpoint(
             "questions": questions,
             "notion_nom": notion_nom,
             "n_questions": len(questions),
-        }
-
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
-
-
-# ------------------------------------------------------------------
-# SESSION — recommandations inter-modules (count >= 2)
-# ------------------------------------------------------------------
-
-
-@app.get("/session/recommendations")
-async def get_recommendations_endpoint(
-    request: Request,
-    notion_key: str,
-    session: Session = Depends(get_session),
-):
-    user = get_current_user(request) or {"email": "test@epf.fr"}
-    sso_id = session.exec(
-        select(models.User.sso_id).where(models.User.email == user["email"])
-    ).first()
-    if not sso_id:
-        return {"ok": True, "recommendations": []}
-    try:
-        from fonctions_python.session_generator import build_notion_data_with_scores
-        from fonctions_python.main import generate_mixed_test
-        import random
-
-        n = max(5, min(20, data.n_questions))
-
-        notion_data = build_notion_data_with_scores(data.notion_key, sso_id, session)
-        notion_nom = notion_data["notion_nom"]
-
-        def split(total):
-            qcm = round(total * 0.5)
-            qro = round(total * 0.3)
-            sbs = total - qcm - qro
-            return qcm, qro, max(0, sbs)
-
-        n_bas = round(n * 0.4)
-        n_sol = round(n * 0.4)
-        n_exp = n - n_bas - n_sol
-
-        q_bas = generate_mixed_test(
-            notion=data.notion_key,
-            niveau="basique",
-            n_qcm=split(n_bas)[0],
-            n_qro=split(n_bas)[1],
-            n_steps=split(n_bas)[2],
-            notion_data_override=notion_data,
-        )
-        q_sol = generate_mixed_test(
-            notion=data.notion_key,
-            niveau="solide",
-            n_qcm=split(n_sol)[0],
-            n_qro=split(n_sol)[1],
-            n_steps=split(n_sol)[2],
-            notion_data_override=notion_data,
-        )
-        q_exp = generate_mixed_test(
-            notion=data.notion_key,
-            niveau="expert",
-            n_qcm=split(n_exp)[0],
-            n_qro=split(n_exp)[1],
-            n_steps=split(n_exp)[2],
-            notion_data_override=notion_data,
-        )
-
-        questions = q_bas + q_sol + q_exp
-        random.shuffle(questions)
-
-        return {
-            "ok": True,
-            "questions": questions,
-            "notion_nom": notion_nom,
-            "n_questions": n,
         }
 
     except Exception as e:

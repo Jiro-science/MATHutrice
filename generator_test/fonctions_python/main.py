@@ -851,38 +851,6 @@ def run(fmt: str, notion: str, niveau: str, n: int) -> None:
     run_fn(questions)
 
 
-# def generate_mixed_test(
-#     notion: str,
-#     niveau: str,
-#     n_qcm: int = 0,
-#     n_qro: int = 0,
-#     n_steps: int = 0,
-# ) -> list[dict]:
-#     """Génère un test mixte avec QCM, QRO et step by step."""
-#     test = []
-
-#     if n_qcm > 0:
-#         qcms = generate_qcm_test(notion, niveau, n_qcm)
-#         print
-#         for q in qcms:
-#             q["type"] = "qcm"
-#         test.extend(qcms)
-
-#     if n_qro > 0:
-#         qros = generate_qro_test(notion, niveau, n_qro)
-#         for q in qros:
-#             q["type"] = "qro"
-#         test.extend(qros)
-
-#     if n_steps > 0:
-#         steps = generate_steps_test(notion, niveau, n_steps)
-#         for q in steps:
-#             q["type"] = "sbs"
-#         test.extend(steps)
-
-#     return test
-
-
 def generate_exercise_randomly(
     REFERENTIEL: dict, niveau: str, notion: str
 ) -> list[dict]:
