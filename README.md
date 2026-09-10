@@ -25,7 +25,7 @@ This is a visual mockup of the home page:
 
 ### Prerequisites
 - Python 3.12+
-- A PostgreSQL database
+- A PostgreSQL database (the team develops against a Postgres container running on an EPF-provided VM, alongside Adminer and VS Code)
 
 ### Install
 ```bash
