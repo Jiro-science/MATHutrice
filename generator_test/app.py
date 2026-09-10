@@ -33,17 +33,6 @@ load_dotenv()
 
 
 # ------------------------------------------------------------------
-# Lazy imports helpers
-# ------------------------------------------------------------------
-
-
-def get_referentiel():
-    from fonctions_python.main import REFERENTIEL
-
-    return REFERENTIEL
-
-
-# ------------------------------------------------------------------
 # Database
 # ------------------------------------------------------------------
 
@@ -285,7 +274,13 @@ async def auth_callback(
         session.add(existing_user)
         session.commit()
 
-        init_progressions_for_user(existing_user.sso_id, session)
+        try:
+            init_progressions_for_user(existing_user.sso_id, session)
+        except ValueError as e:
+            return HTMLResponse(
+                f"<h2>⚠ Erreur d'initialisation</h2><pre>{e}</pre>",
+                status_code=500,
+            )
 
         role = existing_user.role
 
@@ -302,7 +297,13 @@ async def auth_callback(
         session.add(new_user)
         session.commit()
 
-        init_progressions_for_user(new_user.sso_id, session)
+        try:
+            init_progressions_for_user(new_user.sso_id, session)
+        except ValueError as e:
+            return HTMLResponse(
+                f"<h2>⚠ Erreur d'initialisation</h2><pre>{e}</pre>",
+                status_code=500,
+            )
 
         role = "Student"
 
@@ -987,8 +988,10 @@ async def reset_session_endpoint(
 ):
     from fonctions_python.session_generator import (
         get_competence_map_by_codes,
+        get_notion_by_referentiel_key,
         init_progressions_for_user,
     )
+    from fonctions_python.notion_catalogue import get_notion, UnknownNotionKeyError
 
     user = get_current_user(request)
 
@@ -1005,31 +1008,24 @@ async def reset_session_endpoint(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    REFERENTIEL = get_referentiel()
+    try:
+        catalogue = get_notion(data.notion_key, session)
+    except UnknownNotionKeyError:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "Notion inconnue"},
+        )
+
+    notion = get_notion_by_referentiel_key(data.notion_key, session)
+
+    if not notion:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "Notion inconnue en BDD"},
+        )
 
     try:
-        if data.notion_key not in REFERENTIEL:
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "error": "Notion inconnue"},
-            )
-
-        notion = session.exec(
-            select(models.Notion).where(
-                models.Notion.referentiel_key == data.notion_key
-            )
-        ).first()
-
-        if not notion:
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "error": "Notion inconnue en BDD"},
-            )
-
-        codes = [
-            comp["code"]
-            for comp in REFERENTIEL[data.notion_key]["competences"]
-        ]
+        codes = [comp.code for comp in catalogue.competences]
 
         code_to_competence = get_competence_map_by_codes(codes, session)
 
@@ -1136,7 +1132,10 @@ async def check_session(
     notion_key: str,
     session: Session = Depends(get_session),
 ):
-    from fonctions_python.session_generator import is_first_session
+    from fonctions_python.session_generator import (
+        get_notion_by_referentiel_key,
+        is_first_session,
+    )
 
     user = get_current_user(request)
 
@@ -1153,11 +1152,7 @@ async def check_session(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    notion = session.exec(
-        select(models.Notion).where(
-            models.Notion.referentiel_key == notion_key
-        )
-    ).first()
+    notion = get_notion_by_referentiel_key(notion_key, session)
 
     if not notion:
         return JSONResponse(
@@ -1338,17 +1333,15 @@ async def get_scores_endpoint(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    REFERENTIEL = get_referentiel()
-
-    if notion_key not in REFERENTIEL:
+    try:
+        notion_data = build_notion_data_with_scores(notion_key, sso_id, session)
+    except ValueError:
         return JSONResponse(
             status_code=400,
             content={"ok": False, "error": "Notion inconnue"},
         )
 
     try:
-        notion_data = build_notion_data_with_scores(notion_key, sso_id, session)
-
         competences = []
 
         for comp in notion_data["competences"]:
@@ -1357,7 +1350,7 @@ async def get_scores_endpoint(
             competences.append(
                 {
                     "code": comp.get("code"),
-                    "nom": comp.get("nom") or comp.get("title") or comp.get("code"),
+                    "nom": comp.get("title") or comp.get("code"),
                     "niveau": comp.get("niveau", "basique"),
                     "score": round(score, 2),
                     "score_pct": round(score * 100),
@@ -1373,7 +1366,7 @@ async def get_scores_endpoint(
         return {
             "ok": True,
             "notion_key": notion_key,
-            "notion_nom": notion_data.get("notion_nom", notion_key),
+            "notion_nom": notion_data.get("notion_title", notion_key),
             "global_score": round(global_score, 2),
             "global_score_pct": round(global_score * 100),
             "competences": competences,
@@ -1397,6 +1390,8 @@ async def save_session_history_endpoint(
     data: SessionHistoryRequest,
     session: Session = Depends(get_session),
 ):
+    from fonctions_python.session_generator import get_notion_by_referentiel_key
+
     user = get_current_user(request)
 
     if not user:
@@ -1412,11 +1407,7 @@ async def save_session_history_endpoint(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    notion = session.exec(
-        select(models.Notion).where(
-            models.Notion.referentiel_key == data.notion_key
-        )
-    ).first()
+    notion = get_notion_by_referentiel_key(data.notion_key, session)
 
     if not notion:
         return JSONResponse(
@@ -1491,6 +1482,8 @@ async def get_session_history_endpoint(
     notion_key: str,
     session: Session = Depends(get_session),
 ):
+    from fonctions_python.session_generator import get_notion_by_referentiel_key
+
     user = get_current_user(request)
 
     if not user:
@@ -1506,11 +1499,7 @@ async def get_session_history_endpoint(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    notion = session.exec(
-        select(models.Notion).where(
-            models.Notion.referentiel_key == notion_key
-        )
-    ).first()
+    notion = get_notion_by_referentiel_key(notion_key, session)
 
     if not notion:
         return JSONResponse(
@@ -1605,6 +1594,11 @@ async def feedback_endpoint(
 ):
     from fonctions_python.base_generator import client, MODEL
     from lacune_evaluation.LLM_as_Evaluator import diagnostiquer_depuis_competence
+    from fonctions_python.session_generator import (
+        get_competence_map_by_codes,
+        get_notion_by_referentiel_key,
+    )
+    from fonctions_python.notion_catalogue import get_notion
 
     user = get_current_user(request)
 
@@ -1647,8 +1641,6 @@ async def feedback_endpoint(
 
         if data.attempt >= 2 and data.notion_key:
             try:
-                REFERENTIEL = get_referentiel()
-
                 sso_id = session.exec(
                     select(models.User.sso_id).where(
                         models.User.email == user["email"]
@@ -1661,11 +1653,9 @@ async def feedback_endpoint(
                         content={"detail": "Utilisateur introuvable"},
                     )
 
-                source_notion = session.exec(
-                    select(models.Notion).where(
-                        models.Notion.referentiel_key == data.notion_key
-                    )
-                ).first()
+                source_notion = get_notion_by_referentiel_key(
+                    data.notion_key, session
+                )
 
                 if not source_notion:
                     return JSONResponse(
@@ -1686,9 +1676,9 @@ async def feedback_endpoint(
                 diag = result_diag.get("diagnostic", {}).get("diagnostic", {})
                 lacunaires = diag.get("competences_lacunaires", [])
 
+                notion_courante = get_notion(data.notion_key, session)
                 notion_codes_courants = [
-                    c["code"]
-                    for c in REFERENTIEL.get(data.notion_key, {}).get("competences", [])
+                    c.code for c in notion_courante.competences
                 ]
 
                 for lac in lacunaires:
@@ -1701,37 +1691,41 @@ async def feedback_endpoint(
                         lac.get("source") == "detectee_passe2"
                         and lacune_code not in notion_codes_courants
                     ):
-                        notion_trouvee_key = None
-                        notion_trouvee_nom = None
+                        lacune_competence = get_competence_map_by_codes(
+                            [lacune_code], session
+                        ).get(lacune_code)
 
-                        for nkey, ndata in REFERENTIEL.items():
-                            if nkey == data.notion_key:
-                                continue
-
-                            for comp in ndata["competences"]:
-                                if comp["code"] == lacune_code:
-                                    notion_trouvee_key = nkey
-                                    notion_trouvee_nom = ndata["notion_nom"]
-                                    break
-
-                            if notion_trouvee_key:
-                                break
-
-                        if not notion_trouvee_key:
-                            continue
+                        if not lacune_competence:
+                            # Politique stricte en écriture (docs/adr/0002) :
+                            # une recommandation ne doit jamais pointer vers
+                            # une compétence lacunaire absente de la BDD.
+                            raise ValueError(
+                                f"Compétence lacunaire introuvable en BDD : "
+                                f"{lacune_code}"
+                            )
 
                         lacunaire_notion = session.exec(
                             select(models.Notion).where(
-                                models.Notion.referentiel_key == notion_trouvee_key
+                                models.Notion.notion_id
+                                == lacune_competence.notion_id
                             )
                         ).first()
 
                         if not lacunaire_notion:
-                            print(
-                                "[RECO] Notion lacunaire introuvable en BDD :",
-                                notion_trouvee_key,
+                            # Idem : la notion propriétaire de cette
+                            # compétence doit exister en BDD, sinon on ne
+                            # peut pas écrire la recommandation en toute
+                            # sécurité.
+                            raise ValueError(
+                                f"Notion introuvable en BDD pour la "
+                                f"compétence lacunaire {lacune_code}"
                             )
+
+                        if lacunaire_notion.notion_id == source_notion.notion_id:
                             continue
+
+                        notion_trouvee_key = lacunaire_notion.referentiel_key
+                        notion_trouvee_nom = lacunaire_notion.title
 
                         existing = session.exec(
                             select(models.ModuleRecommendation).where(
@@ -1775,6 +1769,12 @@ async def feedback_endpoint(
                         }
 
                         break
+
+            except ValueError:
+                # Politique stricte en écriture (docs/adr/0002) : une
+                # recommandation cassée par une divergence référentiel/BDD
+                # doit remonter, pas être avalée en silence.
+                raise
 
             except Exception as reco_err:
                 print("Reco error:", reco_err)
@@ -1828,17 +1828,17 @@ async def next_targeted_endpoint(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    REFERENTIEL = get_referentiel()
+    try:
+        notion_data = build_notion_data_with_scores(data.notion_key, sso_id, session)
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "Notion inconnue"},
+        )
 
     try:
-        if data.notion_key not in REFERENTIEL:
-            return JSONResponse(
-                status_code=400,
-                content={"ok": False, "error": "Notion inconnue"},
-            )
-
-        notion_data = build_notion_data_with_scores(data.notion_key, sso_id, session)
-        notion_nom = notion_data["notion_nom"]
+        notion_description = notion_data["notion_nom"]
+        notion_title = notion_data["notion_title"]
 
         comp = next(
             (
@@ -1858,7 +1858,7 @@ async def next_targeted_endpoint(
         qtype = random.choice(["qcm", "qro"])
 
         if qtype == "qcm":
-            questions = generate_qcm_test(notion_nom, [comp])
+            questions = generate_qcm_test(notion_description, [comp])
 
             if not questions:
                 return JSONResponse(
@@ -1870,7 +1870,7 @@ async def next_targeted_endpoint(
             question["type"] = "qcm"
 
         else:
-            questions = generate_qro_test(notion_nom, [comp])
+            questions = generate_qro_test(notion_description, [comp])
 
             if not questions:
                 return JSONResponse(
@@ -1881,13 +1881,13 @@ async def next_targeted_endpoint(
             question = questions[0]
             question["type"] = "qro"
 
-        question["notion_nom"] = notion_nom
+        question["notion_nom"] = notion_title
         question["niveau"] = comp.get("niveau", "basique")
 
         return {
             "ok": True,
             "questions": [question],
-            "notion_nom": notion_nom,
+            "notion_nom": notion_title,
         }
 
     except Exception as e:
@@ -1911,6 +1911,8 @@ async def mark_training_started(
     data: TrainingStartedRequest,
     session: Session = Depends(get_session),
 ):
+    from fonctions_python.session_generator import get_notion_by_referentiel_key
+
     user = get_current_user(request)
 
     if not user:
@@ -1926,11 +1928,7 @@ async def mark_training_started(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    notion = session.exec(
-        select(models.Notion).where(
-            models.Notion.referentiel_key == data.notion_key
-        )
-    ).first()
+    notion = get_notion_by_referentiel_key(data.notion_key, session)
 
     if not notion:
         return JSONResponse(
@@ -2023,7 +2021,7 @@ async def evaluation_endpoint(
             return qcm, qro, sbs
 
         notion_data = build_notion_data_with_scores(data.notion_key, sso_id, session)
-        notion_nom = notion_data["notion_nom"]
+        notion_nom = notion_data["notion_title"]
 
         q_bas = generate_mixed_test(
             notion=data.notion_key,
@@ -2090,6 +2088,8 @@ async def get_recommendations_endpoint(
     notion_key: str,
     session: Session = Depends(get_session),
 ):
+    from fonctions_python.session_generator import get_notion_by_referentiel_key
+
     user = get_current_user(request)
 
     if not user:
@@ -2105,11 +2105,7 @@ async def get_recommendations_endpoint(
             content={"detail": "Utilisateur introuvable"},
         )
 
-    source_notion = session.exec(
-        select(models.Notion).where(
-            models.Notion.referentiel_key == notion_key
-        )
-    ).first()
+    source_notion = get_notion_by_referentiel_key(notion_key, session)
 
     if not source_notion:
         return JSONResponse(

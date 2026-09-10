@@ -7,6 +7,7 @@ import models
 from fonctions_python.session_generator import (
     build_notion_data_with_scores,
     deduire_niveau_eleve,
+    get_notion_by_referentiel_key,
     init_progressions_for_user,
     is_first_session,
     persist_score_update,
@@ -114,6 +115,22 @@ def make_progression(
     db.add(prog)
     db.commit()
     return prog
+
+
+# ─── get_notion_by_referentiel_key ──────────────────────────────────────────────
+
+
+def test_get_notion_by_referentiel_key_returns_the_matching_row(db: Session):
+    notion = make_notion(db, "trigonometrie", "Trigo", "desc trigo")
+
+    result = get_notion_by_referentiel_key("trigonometrie", db)
+
+    assert result is not None
+    assert result.notion_id == notion.notion_id
+
+
+def test_get_notion_by_referentiel_key_returns_none_for_unknown_key(db: Session):
+    assert get_notion_by_referentiel_key("clef_inexistante", db) is None
 
 
 # ─── is_first_session ──────────────────────────────────────────────────────────
