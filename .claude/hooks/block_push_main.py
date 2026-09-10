@@ -37,6 +37,15 @@ def find_git_push_arg_lists(command: str) -> list[list[str]]:
     return arg_lists
 
 
+def refspec_target(refspec: str) -> str:
+    """Destination branch name a push refspec resolves to on the remote."""
+    refspec = refspec.lstrip("+")  # drop the force-push prefix
+    if ":" in refspec:
+        src, dst = refspec.split(":", 1)
+        return dst or src
+    return refspec
+
+
 push_arg_lists = find_git_push_arg_lists(command)
 
 if push_arg_lists:
@@ -48,9 +57,19 @@ if push_arg_lists:
     on_main = current_branch == "main"
 
     for args in push_arg_lists:
-        targets_main = "main" in args
+        positional = [a for a in args if not a.startswith("-")]
+        explicit_refspecs = positional[1:]  # positional[0], if any, is the remote
 
-        if on_main or targets_main:
+        if explicit_refspecs:
+            # An explicit target was given (e.g. `git push origin main-backup`):
+            # only block if one of the refspecs actually resolves to main.
+            should_block = any(refspec_target(r) == "main" for r in explicit_refspecs)
+        else:
+            # No explicit refspec (`git push` or `git push <remote>`): this
+            # pushes the current branch implicitly, so it matters if we're on main.
+            should_block = on_main
+
+        if should_block:
             print(
                 "BLOCKED: direct push to 'main' is not allowed. "
                 "Create a feature branch and open a pull request instead.",
