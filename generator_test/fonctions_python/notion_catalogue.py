@@ -2,8 +2,10 @@
 notion_catalogue.py — Lecture partagée et database-backed du catalogue Notion/Competence.
 
 Deux fonctions publiques :
-  - get_notion(notion_key, db)        : structure complète d'une notion (avec ses compétences)
-  - get_competence_catalogue(db)      : catalogue plat de toutes les compétences
+  - get_notion(notion_key, db)        : structure complète d'une notion (avec ses compétences),
+                                         lève UnknownNotionKeyError si la clé est inconnue
+  - get_competence_catalogue(db)      : catalogue plat de toutes les compétences (pas de clé
+                                         en entrée, donc rien à faire échouer sur une clé inconnue)
 
 Chaque compétence (et chaque notion) expose `title` (court, affiché à l'élève) et
 `description` (long, utilisé pour construire les prompts de génération) comme deux

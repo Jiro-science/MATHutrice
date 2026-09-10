@@ -1,8 +1,7 @@
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session
 
 import models
 from fonctions_python.notion_catalogue import (
@@ -10,18 +9,6 @@ from fonctions_python.notion_catalogue import (
     get_competence_catalogue,
     get_notion,
 )
-
-
-@pytest.fixture()
-def db():
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
 
 
 def make_notion(db: Session, key: str, title: str, description: str) -> models.Notion:

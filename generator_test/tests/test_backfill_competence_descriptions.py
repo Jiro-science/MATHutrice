@@ -1,8 +1,7 @@
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session
 
 import models
 from fonctions_python.backfill_competence_descriptions import (
@@ -10,18 +9,6 @@ from fonctions_python.backfill_competence_descriptions import (
     build_code_to_description,
 )
 from fonctions_python.main import REFERENTIEL
-
-
-@pytest.fixture()
-def db():
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
 
 
 def test_build_code_to_description_covers_all_117_referentiel_competences():

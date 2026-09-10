@@ -1,0 +1,3 @@
+# CLI training mode (main.py) excluded from the REFERENTIEL→DB migration
+
+`main.py`'s standalone terminal entry point (`run_training`, `generate_exercise_randomly` under `if __name__ == "__main__"`) runs directly against the module-level `REFERENTIEL` dict, with no DB involvement at all, and is disconnected from the deployed FastAPI app (`app.py`) that is the actual product. We leave this CLI path reading from `REFERENTIEL` as-is; it is not touched by this migration. Migrating it would add scope for no product benefit — it's a dev/test tool, not a served surface. `REFERENTIEL` itself only fully disappears once this path is separately updated or removed, a decision left for later.

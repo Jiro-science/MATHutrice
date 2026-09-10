@@ -1,0 +1,3 @@
+# Referentiel/DB divergence investigation done outside this session
+
+The initial code investigation for the REFERENTIEL/DB migration work — verifying and disproving a suspected concurrency bug in `update_scores()`, then discovering that `REFERENTIEL` (in-memory dict) and the `Notion`/`Competence` tables are two unsynchronized parallel sources — was carried out in a separate conversation, not in this Claude Code session. This was a deliberate choice to avoid spending this session's context budget on exploratory file reads before framing had even started. As a consequence, this session treats those findings as an unverified starting brief to challenge and re-derive from the code, rather than as its own prior work.
