@@ -54,7 +54,7 @@ if push_arg_lists:
         capture_output=True, text=True
     )
     current_branch = result.stdout.strip()
-    on_main = current_branch == "main"
+    on_main = current_branch.lower() == "main"
 
     for args in push_arg_lists:
         positional = [a for a in args if not a.startswith("-")]
@@ -62,8 +62,11 @@ if push_arg_lists:
 
         if explicit_refspecs:
             # An explicit target was given (e.g. `git push origin main-backup`):
-            # only block if one of the refspecs actually resolves to main.
-            should_block = any(refspec_target(r) == "main" for r in explicit_refspecs)
+            # only block if one of the refspecs actually resolves to main
+            # (case-insensitive, so MAIN / Main are also caught).
+            should_block = any(
+                refspec_target(r).lower() == "main" for r in explicit_refspecs
+            )
         else:
             # No explicit refspec (`git push` or `git push <remote>`): this
             # pushes the current branch implicitly, so it matters if we're on main.
