@@ -1,4 +1,3 @@
-from mistralai import Mistral
 import json
 import re
 import sys
@@ -10,12 +9,7 @@ from sqlmodel import Session
 
 from database import engine
 from fonctions_python.notion_catalogue import get_competence_catalogue
-
-API_KEY = os.getenv("MISTRAL_API_KEY")
-
-client = Mistral(api_key=API_KEY)
-
-MODEL = "mistral-small"
+from fonctions_python.base_generator import complete_text
 
 
 def _build_flat_competences(db: Session):
@@ -97,10 +91,7 @@ def detecter_competences(notion, enonce, reponse_correcte, db: Session):
     """Passe 1 : identifie toutes les compétences que l'exercice évalue."""
     toutes_competences = _build_flat_competences(db)
     prompt = prompt_detection(notion, enonce, reponse_correcte, toutes_competences)
-    response = client.chat.complete(
-        model=MODEL, messages=[{"role": "user", "content": prompt}]
-    )
-    return _parse_json(response.choices[0].message.content)
+    return _parse_json(complete_text(prompt))
 
 
 # ─── PASSE 2 : Analyse des lacunes sur les compétences détectées ──────────────
@@ -216,10 +207,7 @@ def analyser_lacunes(
         nb_tentatives,
         dernieres_erreurs,
     )
-    response = client.chat.complete(
-        model=MODEL, messages=[{"role": "user", "content": prompt}]
-    )
-    return _parse_json(response.choices[0].message.content)
+    return _parse_json(complete_text(prompt))
 
 
 def _build_competences_dict(competences_evaluees, diagnostic):

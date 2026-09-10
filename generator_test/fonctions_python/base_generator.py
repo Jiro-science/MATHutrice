@@ -2,10 +2,12 @@
 base_generator.py — Logique commune à tous les formats de questions
 
 Contient :
-  - Configuration Mistral (client, modèle, retries)
+  - Configuration LLM (Mistral et Gemini, sélection via LLM_PROVIDER)
+  - complete_text()    : appel texte brut au fournisseur LLM configuré
   - clean_json()       : nettoyage de la réponse brute
   - parse_json()       : parsing JSON avec message d'erreur clair
-  - call_mistral()     : appel API avec retry automatique
+  - call_mistral()     : appel API avec retry automatique (nom conservé pour
+                         compatibilité, dispatch en réalité via LLM_PROVIDER)
   - run_test()         : boucle de test console + score final (générique)
   - display_score()    : affichage du score final
 
@@ -21,6 +23,7 @@ import os
 import re
 import json
 import logging
+import httpx
 from mistralai import Mistral
 
 # from generator_test.lacune_evaluation.LLM_as_Evaluator import competences_dict
@@ -32,11 +35,57 @@ from mistralai import Mistral
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
+# LLM_PROVIDER bascule tous les appels LLM du projet : "gemini" (par défaut,
+# pour contourner le rate limit persistant sur le compte Mistral) ou
+# "mistral" (retour arrière immédiat sans toucher au code).
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+
 API_KEY = os.getenv("MISTRAL_API_KEY")
 MODEL = "mistral-small"
 MAX_RETRIES = 3
 
 client = Mistral(api_key=API_KEY)
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# gemini-2.0-flash / gemini-1.5-flash / gemini-2.5-flash(-lite) ne sont plus
+# disponibles pour les nouveaux comptes (vérifié le 2026-09-11, 404 "no
+# longer available to new users"). gemini-3.5-flash-lite est le modèle
+# suggéré par Google en remplacement, et offre le meilleur débit gratuit
+# (10 req/min contre 5 pour les autres modèles Flash).
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+
+
+def _complete_mistral(prompt: str) -> str:
+    response = client.chat.complete(
+        model=MODEL, messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+
+
+def _complete_gemini(prompt: str) -> str:
+    response = httpx.post(
+        f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+        params={"key": GEMINI_API_KEY},
+        json={"contents": [{"parts": [{"text": prompt}]}]},
+        timeout=30,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    candidates = data.get("candidates") or []
+    if not candidates:
+        block_reason = data.get("promptFeedback", {}).get("blockReason", "raison inconnue")
+        raise ValueError(f"Réponse Gemini vide (bloquée : {block_reason})")
+
+    parts = candidates[0].get("content", {}).get("parts", [])
+    return "".join(part.get("text", "") for part in parts)
+
+
+def complete_text(prompt: str) -> str:
+    """Appelle le fournisseur LLM configuré (LLM_PROVIDER) et retourne le texte brut."""
+    if LLM_PROVIDER == "gemini":
+        return _complete_gemini(prompt)
+    return _complete_mistral(prompt)
 
 # ─── UTILITAIRES JSON ─────────────────────────────────────────────────────────
 
@@ -74,7 +123,9 @@ def call_mistral(
     prompt: str, notion: str, parse_and_validate, post_process=None
 ) -> dict | None:
     """
-    Appelle Mistral avec retry automatique (MAX_RETRIES tentatives).
+    Appelle le LLM configuré (voir LLM_PROVIDER) avec retry automatique
+    (MAX_RETRIES tentatives). Nom conservé pour compatibilité avec les
+    appelants existants.
 
     Paramètres :
       prompt           : le prompt complet à envoyer
@@ -87,10 +138,7 @@ def call_mistral(
     """
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = client.chat.complete(
-                model=MODEL, messages=[{"role": "user", "content": prompt}]
-            )
-            raw = response.choices[0].message.content
+            raw = complete_text(prompt)
             question = parse_and_validate(raw)
 
             if post_process:

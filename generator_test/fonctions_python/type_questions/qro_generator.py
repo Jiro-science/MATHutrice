@@ -14,14 +14,13 @@ La correction se fait par comparaison souple (normalisation de la chaîne)
 
 from fonctions_python.base_generator import (
     call_mistral,
+    complete_text,
     generate_test,
     display_score,
     print_test_header,
     print_question_header,
     parse_json,
     logger,
-    client,
-    MODEL,
 )
 
 
@@ -151,10 +150,7 @@ def is_correct_llm(
     """
     prompt = build_correction_prompt(question, correct_answer, user_answer)
     try:
-        response = client.chat.complete(
-            model=MODEL, messages=[{"role": "user", "content": prompt}]
-        )
-        raw = response.choices[0].message.content
+        raw = complete_text(prompt)
         data = parse_json(raw)
 
         correct = bool(data.get("correct", False))

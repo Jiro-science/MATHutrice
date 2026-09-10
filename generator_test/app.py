@@ -1592,7 +1592,7 @@ async def feedback_endpoint(
     data: FeedbackRequest,
     session: Session = Depends(get_session),
 ):
-    from fonctions_python.base_generator import client, MODEL
+    from fonctions_python.base_generator import complete_text
     from lacune_evaluation.LLM_as_Evaluator import diagnostiquer_depuis_competence
     from fonctions_python.session_generator import (
         get_competence_map_by_codes,
@@ -1630,12 +1630,7 @@ async def feedback_endpoint(
             "Ne donne JAMAIS la bonne reponse. Utilise le tu. Sois concis. Pas de JSON ni balises.\n"
         )
 
-        response = client.chat.complete(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}],
-        )
-
-        feedback = response.choices[0].message.content.strip()
+        feedback = complete_text(prompt).strip()
 
         cross_module_reco = None
 
