@@ -11,7 +11,7 @@ from sqlmodel import Session
 from database import engine
 from fonctions_python.notion_catalogue import get_competence_catalogue
 
-API_KEY = "fOTxUhR9dDPIsmNOCRIxggr0Erhew4yk"
+API_KEY = os.getenv("MISTRAL_API_KEY")
 
 client = Mistral(api_key=API_KEY)
 

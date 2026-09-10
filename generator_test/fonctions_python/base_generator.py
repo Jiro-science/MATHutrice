@@ -32,7 +32,7 @@ from mistralai import Mistral
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
-API_KEY = os.getenv("MISTRAL_API_KEY", "fOTxUhR9dDPIsmNOCRIxggr0Erhew4yk")
+API_KEY = os.getenv("MISTRAL_API_KEY")
 MODEL = "mistral-small"
 MAX_RETRIES = 3
 
