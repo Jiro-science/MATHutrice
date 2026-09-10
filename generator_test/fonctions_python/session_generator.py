@@ -9,7 +9,7 @@ Flow :
   4. Les scores sont persistés en DB après chaque réponse via /submit_answer
 """
 
-import copy
+import logging
 import random
 from decimal import Decimal
 from datetime import datetime, UTC
@@ -22,10 +22,12 @@ import sys, os
 
 sys.path.insert(0, os.path.dirname(__file__))
 from main import (
-    REFERENTIEL,
     generate_mixed_test,
     generate_exercise_randomly,
 )
+import notion_catalogue
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -59,6 +61,14 @@ def get_notion_by_referentiel_key(referentiel_key: str, db: Session) -> models.N
             models.Notion.referentiel_key == referentiel_key
         )
     ).first()
+
+
+def _get_notion_or_raise(notion_key: str, db: Session) -> notion_catalogue.NotionCatalogue:
+    """Lève ValueError (au lieu de UnknownNotionKeyError) si la clé est inconnue en BDD."""
+    try:
+        return notion_catalogue.get_notion(notion_key, db)
+    except notion_catalogue.UnknownNotionKeyError as e:
+        raise ValueError(str(e)) from e
 
 
 
@@ -100,58 +110,92 @@ def build_notion_data_with_scores(
     db: Session,
 ) -> dict:
     """
-    Reconstruit le dict notion du REFERENTIEL en remplaçant les scores statiques
-    par les vrais scores de l'élève issus de la table progression.
+    Construit la structure de la notion (table Notion/Competence en base) avec
+    les vrais scores de l'élève injectés depuis la table progression.
 
-    Le REFERENTIEL travaille avec des codes métier : tr01, le01...
-    La BDD travaille avec des UUID : competence.competence_id.
+    Chaque compétence porte `nom` (la description longue, destinée aux prompts
+    de génération d'exercices) et `title` (le libellé court, destiné à un
+    affichage éventuel côté appelant) comme deux champs distincts.
+
+    Politique de repli transitoire (docs/adr/0002-referentiel-db-divergence-policy.md) :
+    un score de repli (0.5) est utilisé aussi bien pour une compétence jamais
+    tentée par l'élève (aucune ligne progression) que pour une compétence
+    absente de la BDD malgré sa présence dans le catalogue de la notion — les
+    deux cas sont journalisés séparément pour rester distinguables.
     """
-    if notion_key not in REFERENTIEL:
-        raise ValueError(f"Notion inconnue : {notion_key}")
+    notion = _get_notion_or_raise(notion_key, db)
 
-    notion_data = copy.deepcopy(REFERENTIEL[notion_key])
-    codes = [c["code"] for c in notion_data["competences"]]
-
+    codes = [c.code for c in notion.competences]
     code_to_competence = get_competence_map_by_codes(codes, db)
     competence_ids = [comp.competence_id for comp in code_to_competence.values()]
 
-    if not competence_ids:
-        for comp in notion_data["competences"]:
-            comp["score"] = 0.5
-        return notion_data
-
-    rows = db.exec(
-        select(models.Progression).where(
-            models.Progression.sso_id == sso_id,
-            models.Progression.competence_id.in_(competence_ids),
-        )
-    ).all()
+    rows = (
+        db.exec(
+            select(models.Progression).where(
+                models.Progression.sso_id == sso_id,
+                models.Progression.competence_id.in_(competence_ids),
+            )
+        ).all()
+        if competence_ids
+        else []
+    )
 
     id_to_code = {
         comp.competence_id: code
         for code, comp in code_to_competence.items()
     }
 
-    scores_db = {
-        id_to_code[row.competence_id]: float(row.score)
-        for row in rows
-        if row.competence_id in id_to_code
+    attempted_codes = set()
+    scores_db = {}
+    for row in rows:
+        if row.competence_id not in id_to_code:
+            continue
+        code = id_to_code[row.competence_id]
+        attempted_codes.add(code)
+        scores_db[code] = float(row.score)
+
+    competences = []
+
+    for entry in notion.competences:
+        if entry.code not in code_to_competence:
+            logger.warning(
+                "[SCORES] Compétence %s absente de la BDD malgré sa présence "
+                "dans le catalogue de la notion %s — score de repli utilisé.",
+                entry.code,
+                notion_key,
+            )
+        elif entry.code not in attempted_codes:
+            logger.info(
+                "[SCORES] Compétence %s jamais tentée par l'élève %s — "
+                "score de repli utilisé.",
+                entry.code,
+                sso_id,
+            )
+
+        competences.append(
+            {
+                "code": entry.code,
+                "nom": entry.description,
+                "title": entry.title,
+                "niveau": entry.level,
+                "score": scores_db.get(entry.code, 0.5),
+            }
+        )
+
+    return {
+        "notion_nom": notion.description,
+        "notion_title": notion.title,
+        "competences": competences,
     }
-
-    for comp in notion_data["competences"]:
-        comp["score"] = scores_db.get(comp["code"], 0.5)
-
-    return notion_data
 
 
 # ─── VÉRIFICATION PREMIÈRE FOIS ───────────────────────────────────────────────
 
 
 def is_first_session(notion_key: str, sso_id: UUID, db: Session) -> bool:
-    if notion_key not in REFERENTIEL:
-        raise ValueError(f"Notion inconnue : {notion_key}")
+    notion = _get_notion_or_raise(notion_key, db)
 
-    codes = [c["code"] for c in REFERENTIEL[notion_key]["competences"]]
+    codes = [c.code for c in notion.competences]
 
     code_to_competence = get_competence_map_by_codes(codes, db)
     competence_ids = [comp.competence_id for comp in code_to_competence.values()]
@@ -175,44 +219,51 @@ def is_first_session(notion_key: str, sso_id: UUID, db: Session) -> bool:
 
 def init_progressions_for_user(sso_id: UUID, db: Session) -> None:
     """
-    Initialise les entrées de progression pour toutes les compétences
-    du REFERENTIEL pour un nouvel élève.
+    Initialise les entrées de progression pour toutes les compétences du
+    catalogue (Notion/Competence en base) pour un nouvel élève.
 
     Score initial = 0.50.
     level initial = moyen.
     updated_at = None car la compétence n'a pas encore été travaillée.
+
+    Lève ValueError si une compétence du catalogue n'a pas de ligne
+    correspondante en BDD — politique stricte en écriture (voir
+    docs/adr/0002-referentiel-db-divergence-policy.md) : un score n'est jamais
+    silencieusement abandonné.
     """
-    for notion_key, notion_data in REFERENTIEL.items():
-        codes = [c["code"] for c in notion_data["competences"]]
-        code_to_competence = get_competence_map_by_codes(codes, db)
+    catalogue = notion_catalogue.get_competence_catalogue(db)
+    codes = [entry.code for entry in catalogue]
+    code_to_competence = get_competence_map_by_codes(codes, db)
 
-        for comp in notion_data["competences"]:
-            competence = code_to_competence.get(comp["code"])
+    for entry in catalogue:
+        competence = code_to_competence.get(entry.code)
 
-            if not competence:
-                print(f"[INIT PROGRESSION] Compétence introuvable en BDD : {comp['code']}")
-                continue
-
-            existing = db.exec(
-                select(models.Progression).where(
-                    models.Progression.sso_id == sso_id,
-                    models.Progression.competence_id == competence.competence_id,
-                )
-            ).first()
-
-            if existing:
-                continue
-
-            prog = models.Progression(
-                progression_id=uuid.uuid4(),
-                score=Decimal("0.50"),
-                updated_at=None,
-                level="moyen",
-                attempts_count=0,
-                competence_id=competence.competence_id,
-                sso_id=sso_id,
+        if not competence:
+            raise ValueError(
+                f"Compétence introuvable en BDD malgré sa présence dans le "
+                f"catalogue : {entry.code}"
             )
-            db.add(prog)
+
+        existing = db.exec(
+            select(models.Progression).where(
+                models.Progression.sso_id == sso_id,
+                models.Progression.competence_id == competence.competence_id,
+            )
+        ).first()
+
+        if existing:
+            continue
+
+        prog = models.Progression(
+            progression_id=uuid.uuid4(),
+            score=Decimal("0.50"),
+            updated_at=None,
+            level="moyen",
+            attempts_count=0,
+            competence_id=competence.competence_id,
+            sso_id=sso_id,
+        )
+        db.add(prog)
 
     db.commit()
 
@@ -231,20 +282,24 @@ def persist_score_update(
     Applique les règles de scoring de update_scores() et persiste
     les nouveaux scores en base de données.
 
-    Le REFERENTIEL utilise des codes comme "tr01".
-    La BDD utilise des UUID comme competence_id.
-    Donc on convertit toujours :
-    referentiel_code -> competence_id UUID.
+    Convertit toujours referentiel_code -> competence_id UUID via la BDD.
+
+    Lève ValueError si un code de compétence n'a pas de ligne correspondante
+    en BDD — politique stricte en écriture (voir
+    docs/adr/0002-referentiel-db-divergence-policy.md) : un score n'est jamais
+    silencieusement abandonné.
     """
     from fonctions_python.base_generator import update_scores
-
-    local_ref = copy.deepcopy(REFERENTIEL)
 
     # 1. Codes touchés par la question : ["tr01", "tr04", ...]
     codes = list(competences_dict.keys())
 
-    # 2. Convertir les codes du REFERENTIEL en vraies compétences BDD
+    # 2. Convertir les codes en vraies compétences BDD
     code_to_competence = get_competence_map_by_codes(codes, db)
+
+    missing_codes = [code for code in codes if code not in code_to_competence]
+    if missing_codes:
+        raise ValueError(f"Compétence(s) introuvable(s) en BDD : {missing_codes}")
 
     competence_ids = [
         competence.competence_id
@@ -271,11 +326,16 @@ def persist_score_update(
         if row.competence_id in id_to_code
     }
 
-    # 5. Injecter les scores actuels dans le référentiel local
-    for notion_data in local_ref.values():
-        for comp in notion_data["competences"]:
-            if comp["code"] in scores_db:
-                comp["score"] = scores_db[comp["code"]]
+    # 5. Référentiel minimal (une seule "notion" fictive) pour appeler
+    # update_scores(), qui n'a besoin que de code + score par compétence touchée.
+    local_ref = {
+        "_notion_fictive": {
+            "competences": [
+                {"code": code, "score": scores_db.get(code, 0.5)}
+                for code in codes
+            ]
+        }
+    }
 
     # 6. Adapter le niveau pour update_scores()
     niveau_map = {
@@ -292,7 +352,7 @@ def persist_score_update(
     }
 
     # 7. Calculer les nouveaux scores
-    updated_ref, _, nouveaux_scores = update_scores(
+    _, _, nouveaux_scores = update_scores(
         local_ref,
         question_format,
         competences_dict,
@@ -302,11 +362,7 @@ def persist_score_update(
     now = datetime.now(UTC).replace(tzinfo=None)
 
     for code, new_score in nouveaux_scores.items():
-        competence = code_to_competence.get(code)
-
-        if not competence:
-            print(f"[SCORE UPDATE] Compétence introuvable en BDD : {code}")
-            continue
+        competence = code_to_competence[code]
 
         clamped = max(0.0, min(1.0, new_score))
 
@@ -358,10 +414,9 @@ def generate_positioning_session(notion_key: str, sso_id: UUID, db: Session) -> 
     """
     Génère le test de positionnement sur les 3 niveaux.
     Distribution : 1 basique (3 questions) + 1 solide (6 questions) + 1 expert (2 questions)
-    Adapté au nombre de compétences par niveau dans le REFERENTIEL.
+    Adapté au nombre de compétences par niveau dans la notion.
     """
     notion_data = build_notion_data_with_scores(notion_key, sso_id, db)
-    notion_nom = notion_data["notion_nom"]
 
     q_basique = generate_mixed_test(
         notion=notion_key,
@@ -402,9 +457,13 @@ def generate_positioning_session(notion_key: str, sso_id: UUID, db: Session) -> 
     questions = unique_questions
     random.shuffle(questions)
 
+    # Ici "notion_nom" est le nom du champ de sortie attendu par l'appelant
+    # (affichage) : on y met le titre court (notion_data["notion_title"]), pas
+    # notion_data["notion_nom"] (la description longue utilisée ci-dessus pour
+    # les prompts de génération via notion_data_override).
     return {
         "session_type": "positionnement",
-        "notion_nom": notion_nom,
+        "notion_nom": notion_data["notion_title"],
         "notion_key": notion_key,
         "niveau_eleve": "mixte",
         "questions": questions,
@@ -423,16 +482,16 @@ def generate_next_question(notion_key: str, sso_id: UUID, db: Session) -> dict:
     notion_data = build_notion_data_with_scores(notion_key, sso_id, db)
     niveau_eleve = deduire_niveau_eleve(notion_data)
 
-    # On reconstruit un mini-REFERENTIEL avec les scores injectés
-    # pour que generate_exercise_randomly les utilise
-    local_ref = copy.deepcopy(REFERENTIEL)
-    local_ref[notion_key] = notion_data
+    questions = generate_exercise_randomly(
+        {notion_key: notion_data}, niveau_eleve, notion_key
+    )
 
-    questions = generate_exercise_randomly(local_ref, niveau_eleve, notion_key)
-
+    # Voir generate_positioning_session : "notion_nom" en sortie = titre court,
+    # distinct de notion_data["notion_nom"] (description longue) utilisé plus
+    # haut pour la génération.
     return {
         "session_type": "entrainement",
-        "notion_nom": notion_data["notion_nom"],
+        "notion_nom": notion_data["notion_title"],
         "notion_key": notion_key,
         "niveau_eleve": niveau_eleve,
         "questions": questions,
