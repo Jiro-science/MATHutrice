@@ -18,15 +18,14 @@ client = Mistral(api_key=API_KEY)
 MODEL = "mistral-small"
 
 
-def _build_flat_competences():
+def _build_flat_competences(db: Session):
     """
     Construit une liste plate de toutes les compétences de toutes les notions,
     depuis le catalogue BDD partagé (module notion_catalogue). `nom` porte la
     description longue de la compétence, celle dont les prompts ont besoin
     pour désambiguïser entre compétences voisines.
     """
-    with Session(engine) as db:
-        catalogue = get_competence_catalogue(db)
+    catalogue = get_competence_catalogue(db)
     return [
         {
             "code": entry.code,
@@ -94,9 +93,9 @@ def prompt_detection(notion, enonce, reponse_correcte, toutes_competences):
     """
 
 
-def detecter_competences(notion, enonce, reponse_correcte):
+def detecter_competences(notion, enonce, reponse_correcte, db: Session):
     """Passe 1 : identifie toutes les compétences que l'exercice évalue."""
-    toutes_competences = _build_flat_competences()
+    toutes_competences = _build_flat_competences(db)
     prompt = prompt_detection(notion, enonce, reponse_correcte, toutes_competences)
     response = client.chat.complete(
         model=MODEL, messages=[{"role": "user", "content": prompt}]
@@ -202,9 +201,10 @@ def analyser_lacunes(
     competences_evaluees,
     nb_tentatives,
     dernieres_erreurs,
+    db: Session,
 ):
     """Passe 2 : identifie les compétences non acquises, y compris hors passe 1."""
-    toutes_competences = _build_flat_competences()
+    toutes_competences = _build_flat_competences(db)
     prompt = prompt_analyse(
         notion,
         niveau,
@@ -260,16 +260,18 @@ def diagnostiquer_depuis_competence(
     """
     competence_avec_notion = {**competence_cible, "notion": notion}
     competences_evaluees = [competence_avec_notion]
-    diagnostic = analyser_lacunes(
-        notion,
-        niveau,
-        enonce,
-        reponse_correcte,
-        reponse_etudiant,
-        competences_evaluees,
-        nb_tentatives,
-        dernieres_erreurs,
-    )
+    with Session(engine) as db:
+        diagnostic = analyser_lacunes(
+            notion,
+            niveau,
+            enonce,
+            reponse_correcte,
+            reponse_etudiant,
+            competences_evaluees,
+            nb_tentatives,
+            dernieres_erreurs,
+            db,
+        )
     competences_dict = _build_competences_dict(competences_evaluees, diagnostic)
     return {
         "competences_evaluees": competences_evaluees,
@@ -299,19 +301,21 @@ def diagnostiquer(
     - diagnostic           : diagnostic complet des lacunes
     - competences_dict     : {code: True/False} prêt pour update_scores()
     """
-    detection = detecter_competences(notion, enonce, reponse_correcte)
-    competences_evaluees = detection.get("competences_evaluees", [])
+    with Session(engine) as db:
+        detection = detecter_competences(notion, enonce, reponse_correcte, db)
+        competences_evaluees = detection.get("competences_evaluees", [])
 
-    diagnostic = analyser_lacunes(
-        notion,
-        niveau,
-        enonce,
-        reponse_correcte,
-        reponse_etudiant,
-        competences_evaluees,
-        nb_tentatives,
-        dernieres_erreurs,
-    )
+        diagnostic = analyser_lacunes(
+            notion,
+            niveau,
+            enonce,
+            reponse_correcte,
+            reponse_etudiant,
+            competences_evaluees,
+            nb_tentatives,
+            dernieres_erreurs,
+            db,
+        )
 
     competences_dict = _build_competences_dict(competences_evaluees, diagnostic)
 
