@@ -56,6 +56,7 @@ class Competence(SQLModel, table=True):
     competence_id: UUID = Field(primary_key=True)
     referentiel_code: str = Field(max_length=50, unique=True)
     title: str
+    description: str
     level: str = Field(max_length=50)
     notion_id: UUID = Field(foreign_key="notion.notion_id")
 
