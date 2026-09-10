@@ -1,8 +1,11 @@
 """
-backfill_competence_descriptions.py — Peuple Competence.description depuis REFERENTIEL.
+backfill_competence_descriptions.py — Ajoute et peuple Competence.description
+depuis REFERENTIEL.
 
-Script one-off : pour chaque Competence en base, retrouve l'entrée REFERENTIEL
-correspondante via referentiel_code et copie son "nom" dans description.
+Script one-off : ajoute la colonne competence.description si elle n'existe
+pas encore (aucun outil de migration dans ce projet), puis pour chaque
+Competence en base, retrouve l'entrée REFERENTIEL correspondante via
+referentiel_code et copie son "nom" dans description.
 
 C'est un point d'écriture : une Competence en base sans entrée REFERENTIEL
 correspondante fait échouer le script plutôt que d'être sautée en silence
@@ -17,6 +20,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from fonctions_python.main import REFERENTIEL
@@ -30,6 +34,29 @@ def build_code_to_description() -> dict[str, str]:
         for notion_data in REFERENTIEL.values()
         for competence in notion_data["competences"]
     }
+
+
+def ensure_description_column(db: Session) -> None:
+    """
+    Ajoute la colonne competence.description en base si elle n'existe pas encore.
+
+    SQLModel.metadata.create_all() ne crée que les tables manquantes ; il ne
+    fait jamais d'ALTER TABLE sur une table déjà existante. Ce projet n'a pas
+    d'outil de migration (Alembic), donc ce script porte lui-même ce DDL,
+    idempotent (IF NOT EXISTS) pour pouvoir être rejoué sans risque.
+
+    La colonne est ajoutée nullable : le NOT NULL du modèle SQLModel n'est
+    posé qu'après le backfill (voir enforce_description_not_null), une fois
+    qu'aucune ligne n'a de valeur manquante.
+    """
+    db.execute(text("ALTER TABLE competence ADD COLUMN IF NOT EXISTS description TEXT"))
+    db.commit()
+
+
+def enforce_description_not_null(db: Session) -> None:
+    """Aligne la contrainte DB sur Competence.description: str (non nullable)."""
+    db.execute(text("ALTER TABLE competence ALTER COLUMN description SET NOT NULL"))
+    db.commit()
 
 
 def backfill_competence_descriptions(db: Session) -> int:
@@ -63,5 +90,7 @@ if __name__ == "__main__":
     from database import engine
 
     with Session(engine) as session:
+        ensure_description_column(session)
         count = backfill_competence_descriptions(session)
+        enforce_description_not_null(session)
         print(f"{count} compétence(s) mise(s) à jour.")
