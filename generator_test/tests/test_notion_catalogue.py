@@ -85,6 +85,7 @@ def test_get_notion_returns_full_structure_with_competences(db: Session):
         "Savoir convertir une mesure d'angle entre degrés et radians."
     )
     assert tr01.level == "basique"
+    assert tr01.notion_title == "Trigonométrie"
 
 
 def test_get_notion_title_and_description_are_distinct_fields(db: Session):
@@ -125,6 +126,10 @@ def test_get_competence_catalogue_returns_every_competence_across_notions(db: Se
     assert fp01.title == "fp01 title"
     assert fp01.description == "fp01 desc"
     assert fp01.level == "basique"
+    assert fp01.notion_title == "Fractions"
+
+    tr01 = next(c for c in catalogue if c.code == "tr01")
+    assert tr01.notion_title == "Trigonométrie"
 
 
 def test_get_competence_catalogue_empty_db_returns_empty_list(db: Session):

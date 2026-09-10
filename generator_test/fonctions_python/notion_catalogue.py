@@ -9,12 +9,13 @@ Deux fonctions publiques :
 
 Chaque compétence (et chaque notion) expose `title` (court, affiché à l'élève) et
 `description` (long, utilisé pour construire les prompts de génération) comme deux
-champs distincts — jamais l'un à la place de l'autre.
+champs distincts — jamais l'un à la place de l'autre. Chaque entrée du catalogue
+plat porte aussi `notion_title` (le titre court de sa notion d'appartenance), pour
+permettre aux consommateurs de qualifier une compétence par sa notion sans requête
+supplémentaire.
 
 Ce module ne lit jamais REFERENTIEL : il lit uniquement les tables `Notion` et
-`Competence`. Rien n'y est encore branché — REFERENTIEL reste la source utilisée
-partout ailleurs tant que les tickets consommateurs (voir #3, #4, #5) n'ont pas
-migré. Voir CONTEXT.md pour le vocabulaire Notion/Competence/referentiel_key.
+`Competence`. Voir CONTEXT.md pour le vocabulaire Notion/Competence/referentiel_key.
 """
 
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ class CompetenceCatalogueEntry:
     title: str
     description: str
     level: str
+    notion_title: str
 
 
 @dataclass(frozen=True)
@@ -44,12 +46,15 @@ class NotionCatalogue:
     competences: list[CompetenceCatalogueEntry]
 
 
-def _to_competence_entry(competence: models.Competence) -> CompetenceCatalogueEntry:
+def _to_competence_entry(
+    competence: models.Competence, notion_title: str
+) -> CompetenceCatalogueEntry:
     return CompetenceCatalogueEntry(
         code=competence.referentiel_code,
         title=competence.title,
         description=competence.description,
         level=competence.level,
+        notion_title=notion_title,
     )
 
 
@@ -77,11 +82,18 @@ def get_notion(notion_key: str, db: Session) -> NotionCatalogue:
         key=notion.referentiel_key,
         title=notion.title,
         description=notion.description,
-        competences=[_to_competence_entry(c) for c in competences],
+        competences=[_to_competence_entry(c, notion.title) for c in competences],
     )
 
 
 def get_competence_catalogue(db: Session) -> list[CompetenceCatalogueEntry]:
     """Retourne le catalogue plat de toutes les compétences, toutes notions confondues."""
-    competences = db.exec(select(models.Competence)).all()
-    return [_to_competence_entry(c) for c in competences]
+    rows = db.exec(
+        select(models.Competence, models.Notion.title).join(
+            models.Notion, models.Competence.notion_id == models.Notion.notion_id
+        )
+    ).all()
+    return [
+        _to_competence_entry(competence, notion_title)
+        for competence, notion_title in rows
+    ]

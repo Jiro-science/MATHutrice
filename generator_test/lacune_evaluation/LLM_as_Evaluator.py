@@ -4,8 +4,12 @@ import re
 import sys
 import os
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "fonctions_python"))
-from main import REFERENTIEL
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from sqlmodel import Session
+
+from database import engine
+from fonctions_python.notion_catalogue import get_competence_catalogue
 
 API_KEY = "fOTxUhR9dDPIsmNOCRIxggr0Erhew4yk"
 
@@ -14,20 +18,24 @@ client = Mistral(api_key=API_KEY)
 MODEL = "mistral-small"
 
 
-def _build_flat_competences(referentiel):
-    """Construit une liste plate de toutes les compétences de toutes les notions."""
-    flat = []
-    for notion_data in referentiel.values():
-        for comp in notion_data["competences"]:
-            flat.append(
-                {
-                    "code": comp["code"],
-                    "nom": comp["nom"],
-                    "niveau": comp["niveau"],
-                    "notion": notion_data["notion_nom"],
-                }
-            )
-    return flat
+def _build_flat_competences():
+    """
+    Construit une liste plate de toutes les compétences de toutes les notions,
+    depuis le catalogue BDD partagé (module notion_catalogue). `nom` porte la
+    description longue de la compétence, celle dont les prompts ont besoin
+    pour désambiguïser entre compétences voisines.
+    """
+    with Session(engine) as db:
+        catalogue = get_competence_catalogue(db)
+    return [
+        {
+            "code": entry.code,
+            "nom": entry.description,
+            "niveau": entry.level,
+            "notion": entry.notion_title,
+        }
+        for entry in catalogue
+    ]
 
 
 def _parse_json(reponse_llm):
@@ -88,7 +96,7 @@ def prompt_detection(notion, enonce, reponse_correcte, toutes_competences):
 
 def detecter_competences(notion, enonce, reponse_correcte):
     """Passe 1 : identifie toutes les compétences que l'exercice évalue."""
-    toutes_competences = _build_flat_competences(REFERENTIEL)
+    toutes_competences = _build_flat_competences()
     prompt = prompt_detection(notion, enonce, reponse_correcte, toutes_competences)
     response = client.chat.complete(
         model=MODEL, messages=[{"role": "user", "content": prompt}]
@@ -196,7 +204,7 @@ def analyser_lacunes(
     dernieres_erreurs,
 ):
     """Passe 2 : identifie les compétences non acquises, y compris hors passe 1."""
-    toutes_competences = _build_flat_competences(REFERENTIEL)
+    toutes_competences = _build_flat_competences()
     prompt = prompt_analyse(
         notion,
         niveau,
